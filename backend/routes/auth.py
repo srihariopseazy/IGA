@@ -321,11 +321,13 @@ async def login(
     # Store session
     session = UserSession(
         user_id=user.id,
+        tenant_id=user.tenant_id,
         refresh_token_hash=hashlib.sha256(refresh_token.encode()).hexdigest(),
         ip_address=ip,
         user_agent=ua,
         device_fingerprint=fingerprint,
         expires_at=datetime.now(timezone.utc) + (timedelta(days=30) if body.remember_me else timedelta(days=7)),
+        is_active=True,
     )
     db.add(session)
     await db.commit()
@@ -375,7 +377,7 @@ async def refresh_token(
             and_(
                 UserSession.user_id == user_id,
                 UserSession.refresh_token_hash == token_hash,
-                UserSession.revoked == False,
+                UserSession.is_active == True,
                 UserSession.expires_at > datetime.now(timezone.utc),
             )
         )
@@ -431,10 +433,10 @@ async def logout(
             and_(
                 UserSession.user_id == current_user.id,
                 UserSession.device_fingerprint == device,
-                UserSession.revoked == False,
+                UserSession.is_active == True,
             )
         )
-        .values(revoked=True, revoked_at=datetime.now(timezone.utc))
+        .values(is_active=False)
     )
     await db.commit()
 
@@ -610,7 +612,7 @@ async def reset_password(
     await db.execute(
         update(UserSession)
         .where(and_(UserSession.user_id == user.id, UserSession.revoked == False))
-        .values(revoked=True, revoked_at=datetime.now(timezone.utc))
+        .values(is_active=False)
     )
     await db.commit()
 
@@ -1078,7 +1080,7 @@ async def list_sessions(
         select(UserSession).where(
             and_(
                 UserSession.user_id == current_user.id,
-                UserSession.revoked == False,
+                UserSession.is_active == True,
                 UserSession.expires_at > datetime.now(timezone.utc),
             )
         ).order_by(UserSession.created_at.desc())
@@ -1117,8 +1119,7 @@ async def terminate_session(
     if not session:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
 
-    session.revoked = True
-    session.revoked_at = datetime.now(timezone.utc)
+    session.is_active = False
     await db.commit()
 
     background_tasks.add_task(
@@ -1142,11 +1143,11 @@ async def terminate_all_sessions(
         .where(
             and_(
                 UserSession.user_id == current_user.id,
-                UserSession.revoked == False,
+                UserSession.is_active == True,
                 UserSession.device_fingerprint != current_device,
             )
         )
-        .values(revoked=True, revoked_at=datetime.now(timezone.utc))
+        .values(is_active=False)
     )
     await db.commit()
 
