@@ -1,0 +1,170 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: iga-backend-config
+  namespace: iga
+  labels:
+    app.kubernetes.io/name: iga-backend
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: iga-platform
+data:
+  # ── Application ─────────────────────────────────────────────────────────────
+  APP_NAME: "IGA Platform"
+  APP_VERSION: "1.0.0"
+  DEBUG: "false"
+  ENVIRONMENT: "production"
+  API_V1_PREFIX: "/api/v1"
+
+  # ── Database ─────────────────────────────────────────────────────────────────
+  POSTGRES_HOST: "iga-postgres"
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: "iga_db"
+  DATABASE_POOL_SIZE: "10"
+  DATABASE_MAX_OVERFLOW: "20"
+  DATABASE_POOL_TIMEOUT: "30"
+  DATABASE_POOL_RECYCLE: "1800"
+
+  # ── Redis ─────────────────────────────────────────────────────────────────────
+  REDIS_HOST: "iga-redis"
+  REDIS_PORT: "6379"
+  REDIS_DB_CACHE: "0"
+  REDIS_DB_SESSIONS: "1"
+  REDIS_DB_RATE_LIMIT: "2"
+  REDIS_DB_CELERY_RESULTS: "3"
+  SESSION_TTL_SECONDS: "3600"
+
+  # ── RabbitMQ ─────────────────────────────────────────────────────────────────
+  RABBITMQ_HOST: "iga-rabbitmq"
+  RABBITMQ_PORT: "5672"
+  RABBITMQ_VHOST: "iga_vhost"
+  CELERY_WORKER_CONCURRENCY: "4"
+  CELERY_TASK_SOFT_TIME_LIMIT: "300"
+  CELERY_TASK_TIME_LIMIT: "600"
+
+  # ── MinIO ─────────────────────────────────────────────────────────────────────
+  MINIO_ENDPOINT: "iga-minio:9000"
+  MINIO_SECURE: "false"
+  MINIO_BUCKET_REPORTS: "iga-reports"
+  MINIO_BUCKET_AVATARS: "iga-avatars"
+  MINIO_BUCKET_EXPORTS: "iga-exports"
+  MINIO_BUCKET_IMPORTS: "iga-imports"
+
+  # ── CORS & Hosts ──────────────────────────────────────────────────────────────
+  CORS_ORIGINS: "https://iga.example.com"
+  ALLOWED_HOSTS: "iga.example.com,api.iga.example.com"
+  BACKEND_URL: "https://api.iga.example.com"
+  FRONTEND_URL: "https://iga.example.com"
+
+  # ── JWT ───────────────────────────────────────────────────────────────────────
+  JWT_ALGORITHM: "HS256"
+  JWT_ACCESS_TOKEN_EXPIRE_MINUTES: "60"
+  JWT_REFRESH_TOKEN_EXPIRE_DAYS: "30"
+
+  # ── MFA ───────────────────────────────────────────────────────────────────────
+  MFA_ENABLED: "true"
+  MFA_ISSUER: "IGA Platform"
+  MFA_TOTP_PERIOD: "30"
+  MFA_TOTP_DIGITS: "6"
+  MFA_BACKUP_CODE_COUNT: "10"
+  WEBAUTHN_RP_ID: "iga.example.com"
+  WEBAUTHN_RP_NAME: "IGA Platform"
+  WEBAUTHN_ORIGIN: "https://iga.example.com"
+
+  # ── Password Policy ───────────────────────────────────────────────────────────
+  PASSWORD_MIN_LENGTH: "12"
+  PASSWORD_REQUIRE_UPPERCASE: "true"
+  PASSWORD_REQUIRE_LOWERCASE: "true"
+  PASSWORD_REQUIRE_DIGITS: "true"
+  PASSWORD_REQUIRE_SPECIAL: "true"
+  PASSWORD_HISTORY_COUNT: "10"
+  PASSWORD_EXPIRY_DAYS: "90"
+  PASSWORD_LOCKOUT_ATTEMPTS: "5"
+  PASSWORD_LOCKOUT_DURATION_MINUTES: "30"
+
+  # ── AI / Risk Scoring ─────────────────────────────────────────────────────────
+  ML_RISK_SCORING_ENABLED: "true"
+  ANOMALY_DETECTION_SENSITIVITY: "0.7"
+  RISK_SCORE_LOW_THRESHOLD: "30"
+  RISK_SCORE_MEDIUM_THRESHOLD: "60"
+  RISK_SCORE_HIGH_THRESHOLD: "80"
+  RISK_SCORE_CRITICAL_THRESHOLD: "90"
+  RISK_MODEL_RETRAIN_SCHEDULE: "0 2 * * 0"
+
+  # ── Provisioning ─────────────────────────────────────────────────────────────
+  MAX_CONCURRENT_PROVISIONING: "10"
+  PROVISIONING_RETRY_ATTEMPTS: "3"
+  PROVISIONING_RETRY_DELAY: "60"
+  PROVISIONING_TASK_TIMEOUT: "300"
+
+  # ── Certification ─────────────────────────────────────────────────────────────
+  CERTIFICATION_BATCH_SIZE: "100"
+  CERTIFICATION_REMINDER_DAYS: "7"
+  CERTIFICATION_AUTO_REVOKE_DAYS: "0"
+
+  # ── SoD ───────────────────────────────────────────────────────────────────────
+  SOD_REALTIME_CHECK_ENABLED: "true"
+  SOD_MAX_VIOLATIONS_BEFORE_BLOCK: "0"
+
+  # ── Audit ─────────────────────────────────────────────────────────────────────
+  AUDIT_LOG_ENABLED: "true"
+  AUDIT_LOG_RETENTION_DAYS: "2555"
+  AUDIT_LOG_ES_INDEX: "iga-audit"
+
+  # ── Elasticsearch ─────────────────────────────────────────────────────────────
+  ELASTICSEARCH_HOST: "iga-elasticsearch"
+  ELASTICSEARCH_PORT: "9200"
+  ELASTICSEARCH_URL: "http://iga-elasticsearch:9200"
+
+  # ── Observability ─────────────────────────────────────────────────────────────
+  OTEL_ENABLED: "true"
+  OTEL_SERVICE_NAME: "iga-backend"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4317"
+  OTEL_TRACES_SAMPLER: "parentbased_traceidratio"
+  OTEL_TRACES_SAMPLER_ARG: "0.1"
+
+  # ── Rate Limiting ─────────────────────────────────────────────────────────────
+  RATE_LIMIT_ENABLED: "true"
+  RATE_LIMIT_PER_MINUTE: "100"
+  RATE_LIMIT_AUTH_PER_MINUTE: "10"
+  RATE_LIMIT_SCIM_PER_MINUTE: "60"
+
+  # ── Feature Flags ─────────────────────────────────────────────────────────────
+  FEATURE_GRAPHQL_ENABLED: "true"
+  FEATURE_SCIM_ENABLED: "true"
+  FEATURE_WEBHOOKS_ENABLED: "true"
+  FEATURE_WORKFLOW_ENABLED: "true"
+  FEATURE_AI_INSIGHTS_ENABLED: "true"
+  FEATURE_SELF_SERVICE_ENABLED: "true"
+  FEATURE_DELEGATION_ENABLED: "true"
+  FEATURE_GUEST_USERS_ENABLED: "false"
+
+  # ── Multi-tenancy ─────────────────────────────────────────────────────────────
+  DEFAULT_TENANT_SLUG: "default"
+  MAX_TENANTS: "0"
+  MAX_USERS_PER_TENANT: "0"
+
+  # ── LDAP defaults ─────────────────────────────────────────────────────────────
+  LDAP_ENABLED: "false"
+  LDAP_SYNC_INTERVAL_MINUTES: "60"
+  LDAP_CONNECTION_TIMEOUT: "10"
+  LDAP_PAGE_SIZE: "500"
+
+  # ── SAML defaults ─────────────────────────────────────────────────────────────
+  SAML_ENABLED: "false"
+
+  # ── OAuth defaults ────────────────────────────────────────────────────────────
+  OAUTH_ENABLED: "false"
+  AZURE_AD_ENABLED: "false"
+  GOOGLE_OAUTH_ENABLED: "false"
+  OIDC_ENABLED: "false"
+
+  # ── OPA ───────────────────────────────────────────────────────────────────────
+  OPA_ENABLED: "false"
+  OPA_URL: "http://iga-opa:8181"
+  OPA_POLICY_PATH: "iga/authz"
+  OPA_TIMEOUT_SECONDS: "5"
+
+  # ── Sentry ────────────────────────────────────────────────────────────────────
+  SENTRY_ENABLED: "false"
+  SENTRY_ENVIRONMENT: "production"
+  SENTRY_TRACES_SAMPLE_RATE: "0.1"

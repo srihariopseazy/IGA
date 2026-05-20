@@ -1,0 +1,162 @@
+# ============================================================
+# IGA Platform - Python Dependencies
+# ============================================================
+# All versions are pinned for reproducible builds.
+# Update with care; run full test suite after any version bump.
+# ============================================================
+
+# ─── Core Framework ───────────────────────────────────────────────────────────
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+python-multipart==0.0.12
+httpx==0.27.2
+starlette==0.41.3
+
+# ─── ASGI / Server ───────────────────────────────────────────────────────────
+httptools==0.6.4
+websockets==13.1
+
+# ─── Database ────────────────────────────────────────────────────────────────
+sqlalchemy==2.0.36
+alembic==1.14.0
+asyncpg==0.30.0
+psycopg2-binary==2.9.12
+greenlet
+
+# ─── Redis ────────────────────────────────────────────────────────────────────
+redis==5.2.0
+aioredis==2.0.1
+
+# ─── Celery ───────────────────────────────────────────────────────────────────
+celery==5.4.0
+flower==2.0.1
+kombu==5.4.2
+billiard==4.2.1
+vine==5.1.0
+
+# ─── Security / Authentication ────────────────────────────────────────────────
+python-jose[cryptography]==3.3.0
+passlib[argon2]==1.7.4
+argon2-cffi==23.1.0
+cryptography==43.0.3
+PyJWT==2.10.1
+python3-saml==1.16.0
+pyotp==2.9.0
+qrcode[pil]==8.0
+webauthn==2.2.0
+bcrypt==4.2.1
+
+# ─── OAuth 2.0 / OIDC ────────────────────────────────────────────────────────
+authlib==1.3.2
+httpx-oauth==0.13.0
+
+# ─── LDAP ─────────────────────────────────────────────────────────────────────
+ldap3==2.9.1
+
+# ─── Rate Limiting ────────────────────────────────────────────────────────────
+slowapi==0.1.9
+limits==3.14.0
+
+# ─── GraphQL ─────────────────────────────────────────────────────────────────
+strawberry-graphql[fastapi]==0.246.2
+
+# ─── Pydantic / Settings ──────────────────────────────────────────────────────
+pydantic==2.10.2
+pydantic-settings==2.6.1
+pydantic-extra-types==2.10.0
+email-validator==2.2.0
+annotated-types==0.7.0
+
+# ─── MinIO (Object Storage) ───────────────────────────────────────────────────
+minio==7.2.11
+
+# ─── Email ────────────────────────────────────────────────────────────────────
+aiosmtplib==3.0.2
+jinja2==3.1.4
+MarkupSafe==3.0.2
+
+# ─── Monitoring / Tracing ─────────────────────────────────────────────────────
+prometheus-fastapi-instrumentator==7.0.0
+prometheus-client==0.21.0
+opentelemetry-api==1.29.0
+opentelemetry-sdk==1.29.0
+opentelemetry-instrumentation-fastapi==0.50b0
+opentelemetry-instrumentation-sqlalchemy==0.50b0
+opentelemetry-instrumentation-redis==0.50b0
+opentelemetry-exporter-otlp==1.29.0
+opentelemetry-exporter-otlp-proto-grpc==1.29.0
+
+# ─── ML / AI / Risk Scoring ───────────────────────────────────────────────────
+scikit-learn
+numpy==2.1.3
+pandas==2.2.3
+joblib==1.4.2
+
+# ─── PDF Generation ───────────────────────────────────────────────────────────
+reportlab==4.2.5
+weasyprint==63.1
+
+# ─── Elasticsearch Client ────────────────────────────────────────────────────
+elasticsearch[async]==7.17.12
+elasticsearch-dsl==7.4.1
+
+# ─── HTTP Client ─────────────────────────────────────────────────────────────
+requests==2.32.3
+aiohttp==3.11.7
+certifi==2024.11.26
+
+# ─── Utilities ────────────────────────────────────────────────────────────────
+python-dotenv==1.0.1
+python-dateutil==2.9.0.post0
+pytz==2024.2
+Pillow==11.0.0
+phonenumbers==8.13.50
+ua-parser==0.18.0
+rich==13.9.4
+click==8.1.7
+typer==0.13.1
+orjson==3.10.11
+ujson==5.10.0
+cachetools==5.5.0
+tenacity==9.0.0
+structlog==24.4.0
+sentry-sdk[fastapi]==2.18.0
+
+# ─── XML / SAML Processing ────────────────────────────────────────────────────
+lxml==5.3.0
+xmlsec==1.3.14
+defusedxml==0.7.1
+
+# ─── Data Validation / Serialization ─────────────────────────────────────────
+marshmallow==3.23.1
+python-slugify==8.0.4
+shortuuid==1.0.13
+
+# ─── Async Utilities ──────────────────────────────────────────────────────────
+anyio==4.6.2.post1
+sniffio==1.3.1
+exceptiongroup==1.2.2
+
+# ─── Testing ─────────────────────────────────────────────────────────────────
+pytest==8.3.4
+pytest-asyncio==0.24.0
+pytest-cov==6.0.0
+pytest-mock==3.14.0
+pytest-xdist==3.6.1
+httpx==0.27.2
+faker==32.1.0
+factory-boy==3.3.1
+freezegun==1.5.1
+respx==0.21.1
+asgi-lifespan==2.1.0
+
+# ─── Code Quality ─────────────────────────────────────────────────────────────
+black==24.10.0
+isort==5.13.2
+flake8==7.1.1
+flake8-bugbear==24.10.31
+flake8-comprehensions==3.15.0
+mypy==1.13.0
+bandit==1.8.0
+safety==3.2.11
+pre-commit==4.0.1

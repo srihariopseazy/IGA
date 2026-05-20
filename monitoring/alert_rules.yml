@@ -1,0 +1,449 @@
+# ============================================================
+# Prometheus Alerting Rules — IGA Platform
+# ============================================================
+# Severity levels: critical, warning, info
+# All alerts have runbook_url annotations pointing to docs.
+# ============================================================
+
+groups:
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # API / Backend Health
+  # ────────────────────────────────────────────────────────────────────────────
+  - name: iga_api_health
+    interval: 15s
+    rules:
+
+      - alert: IGABackendDown
+        expr: up{job="iga-backend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "IGA backend is unreachable"
+          description: "The IGA backend job {{ $labels.instance }} has been down for more than 1 minute."
+          runbook_url: "https://wiki.example.com/runbooks/iga-backend-down"
+
+      - alert: IGAHighErrorRate
+        expr: |
+          (
+            sum(rate(http_requests_total{job="iga-backend", status=~"5.."}[5m]))
+            /
+            sum(rate(http_requests_total{job="iga-backend"}[5m]))
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "IGA API error rate above 5%"
+          description: "HTTP 5xx error rate is {{ humanizePercentage $value }} over the last 5 minutes."
+          runbook_url: "https://wiki.example.com/runbooks/iga-high-error-rate"
+
+      - alert: IGAWarningErrorRate
+        expr: |
+          (
+            sum(rate(http_requests_total{job="iga-backend", status=~"5.."}[5m]))
+            /
+            sum(rate(http_requests_total{job="iga-backend"}[5m]))
+          ) > 0.01
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "IGA API error rate above 1%"
+          description: "HTTP 5xx error rate is {{ humanizePercentage $value }} over the last 10 minutes."
+
+      - alert: IGAHighLatencyP95
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_seconds_bucket{job="iga-backend"}[5m])) by (le, handler)
+          ) > 2.0
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "IGA API p95 latency above 2s"
+          description: "Handler {{ $labels.handler }} p95 latency is {{ $value | humanizeDuration }}."
+          runbook_url: "https://wiki.example.com/runbooks/iga-high-latency"
+
+      - alert: IGACriticalLatencyP99
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(http_request_duration_seconds_bucket{job="iga-backend"}[5m])) by (le)
+          ) > 10.0
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "IGA API p99 latency above 10s"
+          description: "Overall p99 request latency is {{ $value | humanizeDuration }}. SLA breach imminent."
+
+      - alert: IGAHighRequestRate
+        expr: |
+          sum(rate(http_requests_total{job="iga-backend"}[1m])) > 1000
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Unusually high request rate on IGA API"
+          description: "Request rate is {{ $value | humanize }} req/s — possible traffic spike or attack."
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # Database (PostgreSQL)
+  # ────────────────────────────────────────────────────────────────────────────
+  - name: iga_database
+    interval: 30s
+    rules:
+
+      - alert: PostgreSQLDown
+        expr: up{job="postgres-exporter"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "PostgreSQL exporter is unreachable"
+          description: "Cannot scrape PostgreSQL metrics from {{ $labels.instance }}."
+          runbook_url: "https://wiki.example.com/runbooks/postgresql-down"
+
+      - alert: PostgreSQLConnectionPoolSaturation
+        expr: |
+          pg_stat_database_numbackends{datname="iga_db"}
+          /
+          pg_settings_max_connections
+          > 0.80
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "PostgreSQL connection pool above 80% utilization"
+          description: "Connection pool is {{ humanizePercentage $value }} full ({{ $value | humanize }} / max_connections)."
+          runbook_url: "https://wiki.example.com/runbooks/pg-connection-pool"
+
+      - alert: PostgreSQLConnectionPoolCritical
+        expr: |
+          pg_stat_database_numbackends{datname="iga_db"}
+          /
+          pg_settings_max_connections
+          > 0.95
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "PostgreSQL connection pool above 95% — connection exhaustion imminent"
+          description: "Connection pool at {{ humanizePercentage $value }}. New connections will be refused."
+
+      - alert: PostgreSQLSlowQueries
+        expr: |
+          pg_stat_activity_max_tx_duration{datname="iga_db", state="active"} > 60
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "PostgreSQL has long-running queries (>60s)"
+          description: "Longest active transaction has been running for {{ $value | humanizeDuration }}."
+
+      - alert: PostgreSQLReplicationLag
+        expr: |
+          pg_replication_lag > 30
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "PostgreSQL replication lag above 30s"
+          description: "Replication lag is {{ $value | humanizeDuration }}."
+
+      - alert: PostgreSQLDiskSpaceLow
+        expr: |
+          (
+            pg_database_size_bytes{datname="iga_db"}
+            /
+            (1024 * 1024 * 1024)
+          ) > 40
+        for: 15m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "PostgreSQL iga_db database size exceeds 40 GiB"
+          description: "Database size is {{ $value | humanize }} GiB. Consider archiving old data."
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # Redis
+  # ────────────────────────────────────────────────────────────────────────────
+  - name: iga_redis
+    interval: 15s
+    rules:
+
+      - alert: RedisDown
+        expr: up{job="redis-exporter"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Redis is unreachable"
+          description: "Redis exporter at {{ $labels.instance }} is down."
+          runbook_url: "https://wiki.example.com/runbooks/redis-down"
+
+      - alert: RedisMemoryHigh
+        expr: |
+          redis_memory_used_bytes / redis_memory_max_bytes > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Redis memory above 85%"
+          description: "Redis is using {{ humanizePercentage $value }} of its max memory ({{ $value | humanize }} bytes used)."
+          runbook_url: "https://wiki.example.com/runbooks/redis-memory"
+
+      - alert: RedisMemoryCritical
+        expr: |
+          redis_memory_used_bytes / redis_memory_max_bytes > 0.95
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Redis memory above 95% — eviction or OOM imminent"
+          description: "Redis memory at {{ humanizePercentage $value }}. Keys are being evicted."
+
+      - alert: RedisRejectedConnections
+        expr: |
+          increase(redis_rejected_connections_total[5m]) > 10
+        for: 1m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Redis is rejecting connections"
+          description: "{{ $value | humanize }} connections were rejected in the last 5 minutes."
+
+      - alert: RedisHighKeyExpiry
+        expr: |
+          rate(redis_expired_keys_total[5m]) > 500
+        for: 5m
+        labels:
+          severity: info
+          team: platform
+        annotations:
+          summary: "Redis high key expiry rate"
+          description: "{{ $value | humanize }} keys/s are expiring — possible cache thrashing."
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # Celery Workers
+  # ────────────────────────────────────────────────────────────────────────────
+  - name: iga_celery
+    interval: 30s
+    rules:
+
+      - alert: CeleryWorkersDown
+        expr: |
+          flower_workers_online_total == 0
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "All Celery workers are offline"
+          description: "No Celery workers are online. Provisioning, notifications, and background jobs are not running."
+          runbook_url: "https://wiki.example.com/runbooks/celery-workers-down"
+
+      - alert: CeleryWorkerCountLow
+        expr: |
+          flower_workers_online_total < 2
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Fewer than 2 Celery workers online"
+          description: "Only {{ $value | humanize }} worker(s) online — degraded throughput."
+
+      - alert: CeleryQueueBacklogHigh
+        expr: |
+          sum(flower_queue_length) > 500
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Celery queue backlog above 500 tasks"
+          description: "Total queued tasks: {{ $value | humanize }}. Workers may be overloaded."
+
+      - alert: CeleryQueueBacklogCritical
+        expr: |
+          sum(flower_queue_length) > 2000
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Celery queue backlog above 2000 tasks — SLA at risk"
+          description: "Total queued tasks: {{ $value | humanize }}. Immediate scaling required."
+
+      - alert: CeleryTaskFailureRate
+        expr: |
+          (
+            rate(flower_events_total{type="task-failed"}[5m])
+            /
+            rate(flower_events_total{type=~"task-succeeded|task-failed"}[5m])
+          ) > 0.10
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Celery task failure rate above 10%"
+          description: "Task failure rate is {{ humanizePercentage $value }} over the last 5 minutes."
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # IGA Business Metrics (SoD, Risk, Certifications)
+  # ────────────────────────────────────────────────────────────────────────────
+  - name: iga_business
+    interval: 60s
+    rules:
+
+      - alert: CriticalSoDViolationsDetected
+        expr: |
+          iga_sod_violations_total{severity="critical", status="open"} > 0
+        for: 5m
+        labels:
+          severity: critical
+          team: compliance
+        annotations:
+          summary: "Critical SoD violations detected"
+          description: "{{ $value | humanize }} critical open SoD violations exist. Immediate review required."
+          runbook_url: "https://wiki.example.com/runbooks/sod-violations"
+
+      - alert: HighSoDViolationCount
+        expr: |
+          iga_sod_violations_total{status="open"} > 50
+        for: 15m
+        labels:
+          severity: warning
+          team: compliance
+        annotations:
+          summary: "High number of open SoD violations (>50)"
+          description: "{{ $value | humanize }} open SoD violations require remediation."
+
+      - alert: CertificationCampaignOverdue
+        expr: |
+          iga_certification_items_overdue_total > 0
+        for: 1h
+        labels:
+          severity: warning
+          team: compliance
+        annotations:
+          summary: "Overdue certification items detected"
+          description: "{{ $value | humanize }} certification items are past their deadline."
+          runbook_url: "https://wiki.example.com/runbooks/certification-overdue"
+
+      - alert: HighRiskUsersUnreviewed
+        expr: |
+          iga_users_risk_score_high_total{reviewed="false"} > 10
+        for: 1h
+        labels:
+          severity: warning
+          team: security
+        annotations:
+          summary: "More than 10 high-risk users have not been reviewed"
+          description: "{{ $value | humanize }} users with high/critical risk scores are pending review."
+
+      - alert: ProvisioningTasksStuck
+        expr: |
+          iga_provisioning_tasks_total{status="pending", age_minutes="60"} > 10
+        for: 30m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Provisioning tasks stuck for >60 minutes"
+          description: "{{ $value | humanize }} provisioning tasks have been pending for over an hour."
+          runbook_url: "https://wiki.example.com/runbooks/provisioning-stuck"
+
+      - alert: AccessRequestApprovalSLABreach
+        expr: |
+          iga_access_requests_pending_hours > 48
+        for: 30m
+        labels:
+          severity: warning
+          team: operations
+        annotations:
+          summary: "Access requests pending approval for >48 hours"
+          description: "{{ $value | humanize }} access requests have exceeded the 48-hour approval SLA."
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # Infrastructure / Host
+  # ────────────────────────────────────────────────────────────────────────────
+  - name: iga_infrastructure
+    interval: 30s
+    rules:
+
+      - alert: HostHighCPU
+        expr: |
+          100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 90
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Host CPU above 90%"
+          description: "Instance {{ $labels.instance }} CPU is at {{ $value | humanize }}%."
+
+      - alert: HostHighMemory
+        expr: |
+          (
+            node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes
+          ) / node_memory_MemTotal_bytes > 0.90
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Host memory above 90%"
+          description: "Instance {{ $labels.instance }} memory usage is {{ humanizePercentage $value }}."
+
+      - alert: HostDiskSpaceLow
+        expr: |
+          (node_filesystem_avail_bytes{fstype!="tmpfs"} / node_filesystem_size_bytes) < 0.10
+        for: 15m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Host disk space below 10%"
+          description: "Filesystem {{ $labels.mountpoint }} on {{ $labels.instance }} has {{ humanizePercentage $value }} free space remaining."
+
+      - alert: HostDiskSpaceCritical
+        expr: |
+          (node_filesystem_avail_bytes{fstype!="tmpfs"} / node_filesystem_size_bytes) < 0.05
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Host disk space below 5% — disk full imminent"
+          description: "Filesystem {{ $labels.mountpoint }} on {{ $labels.instance }} has only {{ humanizePercentage $value }} free."
+
+      - alert: HostNetworkReceiveErrors
+        expr: |
+          rate(node_network_receive_errs_total[5m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Network receive errors detected on {{ $labels.instance }}"
+          description: "Interface {{ $labels.device }} is experiencing receive errors at {{ $value | humanize }}/s."

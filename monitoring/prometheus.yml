@@ -1,0 +1,216 @@
+# ============================================================
+# Prometheus Configuration — IGA Platform
+# ============================================================
+# Scrape interval: 15s global, overridden per job where needed.
+# Retention and storage flags are passed via CLI in docker-compose.
+# ============================================================
+
+global:
+  scrape_interval: 15s
+  scrape_timeout: 10s
+  evaluation_interval: 15s
+  # Attach these labels to every time series scraped by this instance
+  external_labels:
+    environment: production
+    platform: iga
+    region: us-east-1
+
+# ── Rule files ────────────────────────────────────────────────────────────────
+rule_files:
+  - /etc/prometheus/alert_rules.yml
+
+# ── Alertmanager ─────────────────────────────────────────────────────────────
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+      timeout: 10s
+      path_prefix: /
+
+# ── Scrape configs ────────────────────────────────────────────────────────────
+scrape_configs:
+
+  # ── Prometheus self-monitoring ──────────────────────────────────────────────
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+        labels:
+          component: prometheus
+
+  # ── IGA Backend (FastAPI + prometheus-fastapi-instrumentator) ───────────────
+  - job_name: iga-backend
+    scrape_interval: 15s
+    scrape_timeout: 10s
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["backend:8000"]
+        labels:
+          component: backend
+          service: iga-api
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: "iga-backend"
+
+  # ── PostgreSQL Exporter ─────────────────────────────────────────────────────
+  - job_name: postgres-exporter
+    scrape_interval: 30s
+    scrape_timeout: 15s
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["postgres-exporter:9187"]
+        labels:
+          component: database
+          service: postgresql
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: "iga-postgres"
+
+  # ── Redis Exporter ──────────────────────────────────────────────────────────
+  - job_name: redis-exporter
+    scrape_interval: 15s
+    scrape_timeout: 10s
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["redis-exporter:9121"]
+        labels:
+          component: cache
+          service: redis
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: "iga-redis"
+
+  # ── RabbitMQ Exporter (built-in /metrics endpoint in 3.8+) ─────────────────
+  - job_name: rabbitmq
+    scrape_interval: 30s
+    scrape_timeout: 15s
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["rabbitmq:15692"]
+        labels:
+          component: message-broker
+          service: rabbitmq
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: "iga-rabbitmq"
+
+  # ── Celery / Flower ─────────────────────────────────────────────────────────
+  - job_name: flower
+    scrape_interval: 30s
+    scrape_timeout: 15s
+    metrics_path: /flower/metrics
+    basic_auth:
+      username: admin
+      password_file: /etc/prometheus/flower_password
+    static_configs:
+      - targets: ["flower:5555"]
+        labels:
+          component: task-queue
+          service: celery-flower
+
+  # ── Node Exporter (host metrics) ────────────────────────────────────────────
+  - job_name: node-exporter
+    scrape_interval: 15s
+    scrape_timeout: 10s
+    metrics_path: /metrics
+    static_configs:
+      - targets:
+          - "node-exporter:9100"
+        labels:
+          component: host
+          service: node-exporter
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: "iga-host"
+
+  # ── MinIO ────────────────────────────────────────────────────────────────────
+  - job_name: minio
+    scrape_interval: 60s
+    scrape_timeout: 15s
+    metrics_path: /minio/v2/metrics/cluster
+    scheme: http
+    static_configs:
+      - targets: ["minio:9000"]
+        labels:
+          component: object-storage
+          service: minio
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: "iga-minio"
+
+  # ── Nginx (nginx-prometheus-exporter or stub_status) ───────────────────────
+  - job_name: nginx
+    scrape_interval: 15s
+    scrape_timeout: 10s
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["nginx-exporter:9113"]
+        labels:
+          component: reverse-proxy
+          service: nginx
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: "iga-nginx"
+
+  # ── Elasticsearch Exporter ──────────────────────────────────────────────────
+  - job_name: elasticsearch-exporter
+    scrape_interval: 60s
+    scrape_timeout: 30s
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["elasticsearch-exporter:9114"]
+        labels:
+          component: search
+          service: elasticsearch
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: "iga-elasticsearch"
+
+  # ── cAdvisor (container resource metrics) ───────────────────────────────────
+  - job_name: cadvisor
+    scrape_interval: 30s
+    scrape_timeout: 15s
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["cadvisor:8080"]
+        labels:
+          component: containers
+          service: cadvisor
+    metric_relabel_configs:
+      # Drop high-cardinality labels that bloat storage
+      - source_labels: [container_label_com_docker_compose_service]
+        target_label: compose_service
+      - regex: "container_label_.*"
+        action: labeldrop
+
+  # ── Grafana self-monitoring ──────────────────────────────────────────────────
+  - job_name: grafana
+    scrape_interval: 60s
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["grafana:3000"]
+        labels:
+          component: monitoring
+          service: grafana
+
+  # ── Kubernetes API Server (if running in k8s) ───────────────────────────────
+  # Uncomment when deployed to Kubernetes
+  # - job_name: kubernetes-apiservers
+  #   kubernetes_sd_configs:
+  #     - role: endpoints
+  #   scheme: https
+  #   tls_config:
+  #     ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+  #   bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+  #   relabel_configs:
+  #     - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+  #       action: keep
+  #       regex: default;kubernetes;https

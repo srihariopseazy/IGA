@@ -1,0 +1,470 @@
+name: CI
+
+on:
+  push:
+    branches: ["main", "develop", "feature/**", "fix/**"]
+  pull_request:
+    branches: ["main", "develop"]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.12"
+  NODE_VERSION: "20"
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # ────────────────────────────────────────────────────────────────────────────
+  # JOB 1: Backend Lint & Type-check
+  # ────────────────────────────────────────────────────────────────────────────
+  backend-lint:
+    name: Backend Lint & Type-check
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install lint dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install \
+            black==24.10.0 \
+            isort==5.13.2 \
+            flake8==7.1.1 \
+            flake8-bugbear==24.10.31 \
+            flake8-comprehensions==3.15.0 \
+            mypy==1.13.0 \
+            bandit==1.8.0 \
+            safety==3.2.11
+
+      - name: Install project dependencies (for type stubs)
+        run: |
+          pip install --no-cache-dir -r requirements.txt
+
+      - name: Black — code formatting
+        run: black --check --diff backend/ migrations/ seed/
+
+      - name: isort — import ordering
+        run: isort --check-only --diff backend/ migrations/ seed/
+
+      - name: Flake8 — style & logic
+        run: |
+          flake8 backend/ migrations/ seed/ \
+            --max-line-length=120 \
+            --extend-ignore=E203,W503 \
+            --exclude=backend/models/__init__.py
+
+      - name: mypy — static type checking
+        run: |
+          mypy backend/ \
+            --ignore-missing-imports \
+            --no-strict-optional \
+            --python-version=${{ env.PYTHON_VERSION }}
+
+      - name: Bandit — security linting
+        run: |
+          bandit -r backend/ \
+            -ll \
+            --exclude backend/tests/ \
+            -f json \
+            -o bandit-report.json || true
+          bandit -r backend/ -ll --exclude backend/tests/
+
+      - name: Safety — dependency vulnerability check
+        run: |
+          safety check --full-report -r requirements.txt
+        continue-on-error: true
+
+      - name: Upload bandit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandit-report
+          path: bandit-report.json
+          retention-days: 7
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # JOB 2: Backend Tests (with PostgreSQL + Redis service containers)
+  # ────────────────────────────────────────────────────────────────────────────
+  backend-test:
+    name: Backend Tests
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    needs: backend-lint
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: iga_test_db
+          POSTGRES_USER: iga_test_user
+          POSTGRES_PASSWORD: iga_test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U iga_test_user -d iga_test_db"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+      rabbitmq:
+        image: rabbitmq:3.13-alpine
+        env:
+          RABBITMQ_DEFAULT_USER: iga_test_user
+          RABBITMQ_DEFAULT_PASS: iga_test_password
+          RABBITMQ_DEFAULT_VHOST: iga_test_vhost
+        ports:
+          - 5672:5672
+        options: >-
+          --health-cmd="rabbitmq-diagnostics -q ping"
+          --health-interval=15s
+          --health-timeout=10s
+          --health-retries=5
+
+    env:
+      ENVIRONMENT: testing
+      DEBUG: "true"
+      DATABASE_URL: "postgresql+asyncpg://iga_test_user:iga_test_password@localhost:5432/iga_test_db"
+      SYNC_DATABASE_URL: "postgresql://iga_test_user:iga_test_password@localhost:5432/iga_test_db"
+      REDIS_URL: "redis://localhost:6379/0"
+      REDIS_PASSWORD: ""
+      RABBITMQ_URL: "amqp://iga_test_user:iga_test_password@localhost:5672/iga_test_vhost"
+      CELERY_BROKER_URL: "amqp://iga_test_user:iga_test_password@localhost:5672/iga_test_vhost"
+      CELERY_RESULT_BACKEND: "redis://localhost:6379/3"
+      SECRET_KEY: "ci-test-secret-key-not-used-in-production-32bytes"
+      JWT_SECRET_KEY: "ci-test-jwt-secret-key-not-used-in-production"
+      ENCRYPTION_KEY: "dGVzdC1lbmNyeXB0aW9uLWtleS0zMi1ieXRlcw=="
+      MINIO_ENDPOINT: "localhost:9000"
+      MINIO_ACCESS_KEY: "minioadmin"
+      MINIO_SECRET_KEY: "minioadmin"
+      MINIO_SECURE: "false"
+      FRONTEND_URL: "http://localhost:3000"
+      SMTP_HOST: "localhost"
+      SMTP_PORT: "1025"
+      SMTP_USERNAME: ""
+      SMTP_PASSWORD: ""
+      SMTP_USE_TLS: "false"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install --no-cache-dir -r requirements.txt
+
+      - name: Run Alembic migrations
+        run: |
+          alembic upgrade head
+
+      - name: Run pytest with coverage
+        run: |
+          pytest backend/tests/ \
+            -v \
+            --tb=short \
+            --asyncio-mode=auto \
+            --cov=backend \
+            --cov-report=xml:coverage.xml \
+            --cov-report=html:htmlcov \
+            --cov-report=term-missing \
+            --cov-fail-under=60 \
+            -n auto \
+            --dist=worksteal \
+            --timeout=60 \
+            -p no:warnings
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          file: ./coverage.xml
+          flags: backend
+          name: backend-coverage
+          fail_ci_if_error: false
+
+      - name: Upload HTML coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage-html
+          path: htmlcov/
+          retention-days: 14
+
+      - name: Upload test results (JUnit)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-results
+          path: "*.xml"
+          retention-days: 7
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # JOB 3: Frontend Build & Test
+  # ────────────────────────────────────────────────────────────────────────────
+  frontend-build:
+    name: Frontend Build & Test
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+        continue-on-error: false
+
+      - name: Type-check
+        run: npm run type-check
+        continue-on-error: false
+
+      - name: Run unit tests
+        run: npm test -- --coverage --watchAll=false --ci
+
+      - name: Build production bundle
+        run: npm run build
+        env:
+          VITE_API_BASE_URL: https://iga.example.com/api/v1
+          VITE_WS_URL: wss://iga.example.com/ws
+          NODE_ENV: production
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist/
+          retention-days: 7
+
+      - name: Upload frontend test coverage
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          flags: frontend
+          name: frontend-coverage
+          fail_ci_if_error: false
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # JOB 4: Docker Build (multi-arch, no push on PRs)
+  # ────────────────────────────────────────────────────────────────────────────
+  docker-build:
+    name: Docker Build
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    needs: [backend-test, frontend-build]
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU (multi-arch)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: |
+            image=moby/buildkit:master
+
+      - name: Log in to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata (backend)
+        id: meta-backend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=sha-,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Extract Docker metadata (frontend)
+        id: meta-frontend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=sha-,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build & push backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile.backend
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta-backend.outputs.tags }}
+          labels: ${{ steps.meta-backend.outputs.labels }}
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
+          build-args: |
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            GIT_COMMIT=${{ github.sha }}
+            VERSION=${{ github.ref_name }}
+
+      - name: Build & push frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile.frontend
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta-frontend.outputs.tags }}
+          labels: ${{ steps.meta-frontend.outputs.labels }}
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+
+      - name: Docker Scout — vulnerability scan (backend)
+        if: github.event_name != 'pull_request'
+        uses: docker/scout-action@v1
+        with:
+          command: cves
+          image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend:sha-${{ github.sha }}
+          only-severities: critical,high
+          exit-code: false
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # JOB 5: Security Scan
+  # ────────────────────────────────────────────────────────────────────────────
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    # Run in parallel with docker build — doesn't depend on it
+    needs: backend-lint
+
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: python, javascript
+          config-file: .github/codeql-config.yml
+        continue-on-error: true
+
+      - name: Autobuild (CodeQL)
+        uses: github/codeql-action/autobuild@v3
+        continue-on-error: true
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:python"
+        continue-on-error: true
+
+      - name: Trivy — filesystem vulnerability scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: sarif
+          output: trivy-results.sarif
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+
+      - name: Upload Trivy SARIF to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-results.sarif
+
+      - name: Trivy — config scan (Dockerfile, k8s YAML)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: config
+          scan-ref: .
+          format: table
+          exit-code: 0
+          severity: CRITICAL,HIGH
+
+      - name: Gitleaks — secrets detection
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # JOB 6: All checks passed (gate for branch protection)
+  # ────────────────────────────────────────────────────────────────────────────
+  ci-success:
+    name: CI Success
+    runs-on: ubuntu-22.04
+    needs: [backend-lint, backend-test, frontend-build, docker-build, security-scan]
+    if: always()
+    steps:
+      - name: Check all jobs
+        run: |
+          if [[ "${{ needs.backend-lint.result }}" != "success" || \
+                "${{ needs.backend-test.result }}" != "success" || \
+                "${{ needs.frontend-build.result }}" != "success" ]]; then
+            echo "One or more required jobs failed."
+            exit 1
+          fi
+          echo "All required CI jobs passed."

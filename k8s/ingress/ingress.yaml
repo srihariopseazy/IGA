@@ -1,0 +1,165 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: iga-ingress
+  namespace: iga
+  labels:
+    app.kubernetes.io/name: iga-ingress
+    app.kubernetes.io/part-of: iga-platform
+  annotations:
+    # Ingress class
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/ingress-class: "nginx"
+
+    # SSL / TLS
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/ssl-protocols: "TLSv1.2 TLSv1.3"
+    nginx.ingress.kubernetes.io/ssl-ciphers: "ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305"
+
+    # Security headers
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;
+      add_header X-Frame-Options "SAMEORIGIN" always;
+      add_header X-Content-Type-Options "nosniff" always;
+      add_header X-XSS-Protection "1; mode=block" always;
+      add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+      add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=()" always;
+      add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' wss: ws:; frame-ancestors 'none';" always;
+
+    # Rate limiting
+    nginx.ingress.kubernetes.io/limit-rps: "60"
+    nginx.ingress.kubernetes.io/limit-connections: "100"
+
+    # Proxy settings
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "10"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "120"
+    nginx.ingress.kubernetes.io/proxy-buffering: "on"
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "8k"
+
+    # WebSocket support
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+    nginx.ingress.kubernetes.io/websocket-services: "iga-backend"
+
+    # Upstream keepalive
+    nginx.ingress.kubernetes.io/upstream-keepalive-connections: "32"
+    nginx.ingress.kubernetes.io/upstream-keepalive-timeout: "60"
+
+    # Enable CORS
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "https://iga.example.com"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, PATCH, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "DNT,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Range,Authorization,X-Tenant-ID,X-Request-ID"
+    nginx.ingress.kubernetes.io/cors-allow-credentials: "true"
+    nginx.ingress.kubernetes.io/cors-max-age: "1728000"
+
+    # Gzip compression
+    nginx.ingress.kubernetes.io/use-gzip: "true"
+    nginx.ingress.kubernetes.io/gzip-level: "5"
+    nginx.ingress.kubernetes.io/gzip-types: "text/plain text/css application/json application/javascript text/xml application/xml"
+
+    # Rewrite rules
+    nginx.ingress.kubernetes.io/rewrite-target: /
+
+    # Server tokens off
+    nginx.ingress.kubernetes.io/server-snippet: |
+      server_tokens off;
+      more_clear_headers Server;
+
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - iga.example.com
+        - api.iga.example.com
+      secretName: iga-tls-secret
+  rules:
+    # Main application host
+    - host: iga.example.com
+      http:
+        paths:
+          # API routes → backend
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: iga-backend
+                port:
+                  number: 8000
+          # GraphQL → backend
+          - path: /graphql
+            pathType: Exact
+            backend:
+              service:
+                name: iga-backend
+                port:
+                  number: 8000
+          # SCIM → backend
+          - path: /scim
+            pathType: Prefix
+            backend:
+              service:
+                name: iga-backend
+                port:
+                  number: 8000
+          # WebSocket → backend
+          - path: /ws
+            pathType: Prefix
+            backend:
+              service:
+                name: iga-backend
+                port:
+                  number: 8000
+          # OpenAPI docs → backend
+          - path: /docs
+            pathType: Prefix
+            backend:
+              service:
+                name: iga-backend
+                port:
+                  number: 8000
+          - path: /openapi.json
+            pathType: Exact
+            backend:
+              service:
+                name: iga-backend
+                port:
+                  number: 8000
+          - path: /redoc
+            pathType: Exact
+            backend:
+              service:
+                name: iga-backend
+                port:
+                  number: 8000
+          # Health check → backend
+          - path: /health
+            pathType: Exact
+            backend:
+              service:
+                name: iga-backend
+                port:
+                  number: 8000
+          # Everything else → frontend SPA
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: iga-frontend
+                port:
+                  number: 80
+
+    # Dedicated API subdomain
+    - host: api.iga.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: iga-backend
+                port:
+                  number: 8000

@@ -1,0 +1,413 @@
+name: Deploy
+
+on:
+  # Staging: auto-deploy on every push to main
+  push:
+    branches:
+      - main
+  # Production: deploy on semantic version tag  (e.g. v1.2.3)
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+      - "v[0-9]+.[0-9]+.[0-9]+-rc[0-9]+"
+  # Manual trigger for either environment
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+      image_tag:
+        description: Image tag to deploy (default = latest commit SHA)
+        required: false
+        type: string
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false   # Never cancel in-flight deploys
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  HELM_VERSION: "3.16.2"
+  KUBECTL_VERSION: "1.31.0"
+  KUBE_NAMESPACE_STAGING: iga-staging
+  KUBE_NAMESPACE_PROD: iga-production
+
+jobs:
+  # ────────────────────────────────────────────────────────────────────────────
+  # Determine target environment & image tag
+  # ────────────────────────────────────────────────────────────────────────────
+  prepare:
+    name: Prepare deployment parameters
+    runs-on: ubuntu-22.04
+    outputs:
+      environment: ${{ steps.params.outputs.environment }}
+      image_tag: ${{ steps.params.outputs.image_tag }}
+      namespace: ${{ steps.params.outputs.namespace }}
+    steps:
+      - name: Resolve parameters
+        id: params
+        run: |
+          # Determine environment
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            ENV="${{ github.event.inputs.environment }}"
+          elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            ENV="production"
+          else
+            ENV="staging"
+          fi
+
+          # Determine image tag
+          if [[ -n "${{ github.event.inputs.image_tag }}" ]]; then
+            TAG="${{ github.event.inputs.image_tag }}"
+          elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            TAG="${GITHUB_REF_NAME}"
+          else
+            TAG="sha-$(echo '${{ github.sha }}' | cut -c1-7)"
+          fi
+
+          # Namespace
+          if [[ "$ENV" == "production" ]]; then
+            NS="${{ env.KUBE_NAMESPACE_PROD }}"
+          else
+            NS="${{ env.KUBE_NAMESPACE_STAGING }}"
+          fi
+
+          echo "environment=$ENV" >> $GITHUB_OUTPUT
+          echo "image_tag=$TAG"   >> $GITHUB_OUTPUT
+          echo "namespace=$NS"    >> $GITHUB_OUTPUT
+          echo "Deploying $TAG to $ENV ($NS)"
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # Deploy to STAGING
+  # ────────────────────────────────────────────────────────────────────────────
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    needs: prepare
+    if: needs.prepare.outputs.environment == 'staging'
+    environment:
+      name: staging
+      url: https://staging.iga.example.com
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: "v${{ env.KUBECTL_VERSION }}"
+
+      - name: Configure AWS credentials (EKS)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_STAGING }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_STAGING }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Update kubeconfig for staging cluster
+        run: |
+          aws eks update-kubeconfig \
+            --region ${{ secrets.AWS_REGION }} \
+            --name ${{ secrets.EKS_CLUSTER_NAME_STAGING }}
+
+      - name: Create namespace if absent
+        run: |
+          kubectl get namespace ${{ needs.prepare.outputs.namespace }} \
+            || kubectl create namespace ${{ needs.prepare.outputs.namespace }}
+
+      - name: Create / update image pull secret
+        run: |
+          kubectl create secret docker-registry regcred \
+            --docker-server=ghcr.io \
+            --docker-username=${{ github.actor }} \
+            --docker-password=${{ secrets.GITHUB_TOKEN }} \
+            --namespace=${{ needs.prepare.outputs.namespace }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Helm — add repos
+        run: |
+          helm repo add bitnami https://charts.bitnami.com/bitnami
+          helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+          helm repo update
+
+      - name: Helm — deploy IGA (staging)
+        run: |
+          helm upgrade --install iga-staging ./k8s/helm \
+            --namespace ${{ needs.prepare.outputs.namespace }} \
+            --create-namespace \
+            --values k8s/helm/values.yaml \
+            --values k8s/helm/values-staging.yaml \
+            --set backend.image.tag=${{ needs.prepare.outputs.image_tag }} \
+            --set frontend.image.tag=${{ needs.prepare.outputs.image_tag }} \
+            --set global.domain=staging.iga.example.com \
+            --atomic \
+            --timeout 10m \
+            --wait \
+            --history-max 10
+
+      - name: Verify rollout (backend)
+        run: |
+          kubectl rollout status deployment/iga-backend \
+            --namespace ${{ needs.prepare.outputs.namespace }} \
+            --timeout=5m
+
+      - name: Verify rollout (frontend)
+        run: |
+          kubectl rollout status deployment/iga-frontend \
+            --namespace ${{ needs.prepare.outputs.namespace }} \
+            --timeout=3m
+
+      - name: Run smoke tests against staging
+        run: |
+          STAGING_URL="https://staging.iga.example.com"
+          echo "Smoke testing $STAGING_URL"
+
+          # Health check
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            --max-time 30 "$STAGING_URL/health")
+          if [[ "$HTTP_STATUS" != "200" ]]; then
+            echo "Health check failed: HTTP $HTTP_STATUS"
+            exit 1
+          fi
+
+          # API version check
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            --max-time 30 "$STAGING_URL/api/v1/version")
+          if [[ "$HTTP_STATUS" != "200" ]]; then
+            echo "API version check failed: HTTP $HTTP_STATUS"
+            exit 1
+          fi
+
+          echo "Smoke tests passed."
+
+      - name: Notify deployment success (Slack)
+        if: success()
+        uses: slackapi/slack-github-action@v2
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "text": ":white_check_mark: *IGA Staging deployed successfully*",
+              "attachments": [{
+                "color": "good",
+                "fields": [
+                  {"title": "Image Tag", "value": "${{ needs.prepare.outputs.image_tag }}", "short": true},
+                  {"title": "Deployed by", "value": "${{ github.actor }}", "short": true},
+                  {"title": "Commit", "value": "${{ github.sha }}", "short": false}
+                ]
+              }]
+            }
+        continue-on-error: true
+
+      - name: Notify deployment failure (Slack)
+        if: failure()
+        uses: slackapi/slack-github-action@v2
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "text": ":x: *IGA Staging deployment FAILED*",
+              "attachments": [{
+                "color": "danger",
+                "fields": [
+                  {"title": "Image Tag", "value": "${{ needs.prepare.outputs.image_tag }}", "short": true},
+                  {"title": "Triggered by", "value": "${{ github.actor }}", "short": true},
+                  {"title": "Run URL", "value": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}", "short": false}
+                ]
+              }]
+            }
+        continue-on-error: true
+
+  # ────────────────────────────────────────────────────────────────────────────
+  # Deploy to PRODUCTION (requires staging success + manual approval)
+  # ────────────────────────────────────────────────────────────────────────────
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    needs: prepare
+    if: needs.prepare.outputs.environment == 'production'
+    environment:
+      name: production
+      url: https://iga.example.com
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: "v${{ env.KUBECTL_VERSION }}"
+
+      - name: Configure AWS credentials (EKS production)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID_PROD }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY_PROD }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Update kubeconfig for production cluster
+        run: |
+          aws eks update-kubeconfig \
+            --region ${{ secrets.AWS_REGION }} \
+            --name ${{ secrets.EKS_CLUSTER_NAME_PROD }}
+
+      - name: Create namespace if absent
+        run: |
+          kubectl get namespace ${{ needs.prepare.outputs.namespace }} \
+            || kubectl create namespace ${{ needs.prepare.outputs.namespace }}
+
+      - name: Create / update image pull secret
+        run: |
+          kubectl create secret docker-registry regcred \
+            --docker-server=ghcr.io \
+            --docker-username=${{ github.actor }} \
+            --docker-password=${{ secrets.GITHUB_TOKEN }} \
+            --namespace=${{ needs.prepare.outputs.namespace }} \
+            --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Helm — add repos
+        run: |
+          helm repo add bitnami https://charts.bitnami.com/bitnami
+          helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx
+          helm repo update
+
+      - name: Helm — deploy IGA (production)
+        run: |
+          helm upgrade --install iga-production ./k8s/helm \
+            --namespace ${{ needs.prepare.outputs.namespace }} \
+            --create-namespace \
+            --values k8s/helm/values.yaml \
+            --values k8s/helm/values-production.yaml \
+            --set backend.image.tag=${{ needs.prepare.outputs.image_tag }} \
+            --set frontend.image.tag=${{ needs.prepare.outputs.image_tag }} \
+            --set global.domain=iga.example.com \
+            --atomic \
+            --timeout 15m \
+            --wait \
+            --history-max 5
+
+      - name: Verify rollout (backend)
+        run: |
+          kubectl rollout status deployment/iga-backend \
+            --namespace ${{ needs.prepare.outputs.namespace }} \
+            --timeout=10m
+
+      - name: Verify rollout (celery-worker)
+        run: |
+          kubectl rollout status deployment/iga-celery-worker \
+            --namespace ${{ needs.prepare.outputs.namespace }} \
+            --timeout=5m
+
+      - name: Verify rollout (frontend)
+        run: |
+          kubectl rollout status deployment/iga-frontend \
+            --namespace ${{ needs.prepare.outputs.namespace }} \
+            --timeout=5m
+
+      - name: Run smoke tests against production
+        run: |
+          PROD_URL="https://iga.example.com"
+          echo "Smoke testing $PROD_URL"
+
+          for ENDPOINT in "/health" "/api/v1/version"; do
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              --max-time 30 "$PROD_URL$ENDPOINT")
+            if [[ "$HTTP_STATUS" != "200" ]]; then
+              echo "Smoke test failed for $ENDPOINT: HTTP $HTTP_STATUS"
+              exit 1
+            fi
+            echo "$ENDPOINT OK ($HTTP_STATUS)"
+          done
+
+          echo "All smoke tests passed."
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: "IGA Platform ${{ github.ref_name }}"
+          body: |
+            ## IGA Platform ${{ github.ref_name }}
+
+            Deployed to production at $(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+            **Docker images:**
+            - Backend: `ghcr.io/${{ github.repository }}-backend:${{ github.ref_name }}`
+            - Frontend: `ghcr.io/${{ github.repository }}-frontend:${{ github.ref_name }}`
+
+            **Changes:** See [CHANGELOG.md](CHANGELOG.md) for details.
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-rc') }}
+
+      - name: Notify production deployment success (Slack)
+        if: success()
+        uses: slackapi/slack-github-action@v2
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "text": ":rocket: *IGA Production deployed successfully*",
+              "attachments": [{
+                "color": "good",
+                "fields": [
+                  {"title": "Version", "value": "${{ needs.prepare.outputs.image_tag }}", "short": true},
+                  {"title": "Deployed by", "value": "${{ github.actor }}", "short": true},
+                  {"title": "URL", "value": "https://iga.example.com", "short": false}
+                ]
+              }]
+            }
+        continue-on-error: true
+
+      - name: Notify production deployment failure (Slack)
+        if: failure()
+        uses: slackapi/slack-github-action@v2
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {
+              "text": ":fire: *IGA Production deployment FAILED — URGENT*",
+              "attachments": [{
+                "color": "danger",
+                "fields": [
+                  {"title": "Version", "value": "${{ needs.prepare.outputs.image_tag }}", "short": true},
+                  {"title": "Triggered by", "value": "${{ github.actor }}", "short": true},
+                  {"title": "Run URL", "value": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}", "short": false}
+                ]
+              }]
+            }
+        continue-on-error: true
+
+      - name: Rollback on failure
+        if: failure()
+        run: |
+          echo "Rolling back production deployment..."
+          helm rollback iga-production 0 \
+            --namespace ${{ needs.prepare.outputs.namespace }} \
+            --wait \
+            --timeout 10m
+          echo "Rollback completed."
+        continue-on-error: true

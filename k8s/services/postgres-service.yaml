@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: iga-postgres
+  namespace: iga
+  labels:
+    app.kubernetes.io/name: iga-postgres
+    app.kubernetes.io/component: database
+    app.kubernetes.io/part-of: iga-platform
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9187"
+    prometheus.io/path: "/metrics"
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: iga-postgres
+    app.kubernetes.io/component: database
+  ports:
+    - name: postgres
+      protocol: TCP
+      port: 5432
+      targetPort: 5432
+    - name: metrics
+      protocol: TCP
+      port: 9187
+      targetPort: 9187
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800

@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: iga-frontend
+  namespace: iga
+  labels:
+    app.kubernetes.io/name: iga-frontend
+    app.kubernetes.io/component: frontend
+    app.kubernetes.io/part-of: iga-platform
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: iga-frontend
+    app.kubernetes.io/component: frontend
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: 80
+  sessionAffinity: None

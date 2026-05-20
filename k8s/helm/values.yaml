@@ -1,0 +1,513 @@
+# ============================================================
+# IGA Platform — Helm Chart Values
+# ============================================================
+# Override these values in a separate values-prod.yaml or
+# values-staging.yaml file; never edit this file directly in CI.
+# ============================================================
+
+global:
+  imageRegistry: ""
+  imagePullSecrets: []
+  storageClass: ""
+  # Namespace to deploy into
+  namespace: iga
+  # Domain used for Ingress hosts
+  domain: iga.example.com
+  # TLS issuer annotation value
+  tlsIssuer: letsencrypt-prod
+
+# ── Backend ──────────────────────────────────────────────────────────────────
+backend:
+  enabled: true
+  name: iga-backend
+  image:
+    repository: ghcr.io/your-org/iga-backend
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  replicaCount: 2
+  command: []
+  args: []
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+    limits:
+      cpu: "2000m"
+      memory: "2Gi"
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 80
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 60
+    periodSeconds: 30
+    timeoutSeconds: 10
+    failureThreshold: 3
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 30
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  service:
+    type: ClusterIP
+    port: 8000
+    metricsPort: 9090
+  env:
+    ENVIRONMENT: production
+    DEBUG: "false"
+  envFrom:
+    - configMapRef:
+        name: iga-backend-config
+    - secretRef:
+        name: iga-backend-secrets
+  nodeSelector: {}
+  tolerations: []
+  affinity:
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: app.kubernetes.io/name
+                  operator: In
+                  values:
+                    - iga-backend
+            topologyKey: kubernetes.io/hostname
+  podAnnotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8000"
+    prometheus.io/path: "/metrics"
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: false
+    capabilities:
+      drop:
+        - ALL
+
+# ── Celery Worker ─────────────────────────────────────────────────────────────
+celeryWorker:
+  enabled: true
+  name: iga-celery-worker
+  replicaCount: 2
+  command:
+    - celery
+    - -A
+    - backend.celery_app
+    - worker
+    - --loglevel=info
+    - --concurrency=4
+    - --queues=default,provisioning,notifications,risk_scoring,certification
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "256Mi"
+    limits:
+      cpu: "2000m"
+      memory: "1Gi"
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 8
+    targetCPUUtilizationPercentage: 80
+
+# ── Celery Beat ───────────────────────────────────────────────────────────────
+celeryBeat:
+  enabled: true
+  name: iga-celery-beat
+  # Only 1 beat scheduler should ever run
+  replicaCount: 1
+  command:
+    - celery
+    - -A
+    - backend.celery_app
+    - beat
+    - --loglevel=info
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+# ── Flower ────────────────────────────────────────────────────────────────────
+flower:
+  enabled: true
+  name: iga-flower
+  replicaCount: 1
+  command:
+    - celery
+    - -A
+    - backend.celery_app
+    - flower
+    - --port=5555
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+  service:
+    type: ClusterIP
+    port: 5555
+
+# ── Frontend ──────────────────────────────────────────────────────────────────
+frontend:
+  enabled: true
+  name: iga-frontend
+  image:
+    repository: ghcr.io/your-org/iga-frontend
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: "50m"
+      memory: "64Mi"
+    limits:
+      cpu: "500m"
+      memory: "256Mi"
+  autoscaling:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 70
+  service:
+    type: ClusterIP
+    port: 80
+
+# ── Ingress ───────────────────────────────────────────────────────────────────
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "120"
+  hosts:
+    - host: iga.example.com
+      paths:
+        - path: /api
+          pathType: Prefix
+          backend: backend
+        - path: /graphql
+          pathType: Exact
+          backend: backend
+        - path: /scim
+          pathType: Prefix
+          backend: backend
+        - path: /ws
+          pathType: Prefix
+          backend: backend
+        - path: /docs
+          pathType: Prefix
+          backend: backend
+        - path: /health
+          pathType: Exact
+          backend: backend
+        - path: /
+          pathType: Prefix
+          backend: frontend
+  tls:
+    - secretName: iga-tls-secret
+      hosts:
+        - iga.example.com
+
+# ── PostgreSQL ────────────────────────────────────────────────────────────────
+postgresql:
+  enabled: true
+  name: iga-postgres
+  image:
+    repository: postgres
+    tag: "16-alpine"
+    pullPolicy: IfNotPresent
+  auth:
+    database: iga_db
+    username: iga_user
+    # password is injected from secret iga-backend-secrets.POSTGRES_PASSWORD
+    existingSecret: iga-backend-secrets
+    secretKeys:
+      adminPasswordKey: POSTGRES_PASSWORD
+      userPasswordKey: POSTGRES_PASSWORD
+  primary:
+    resources:
+      requests:
+        cpu: "500m"
+        memory: "512Mi"
+      limits:
+        cpu: "2000m"
+        memory: "2Gi"
+    persistence:
+      enabled: true
+      size: 50Gi
+      storageClass: ""
+    extraEnvVars:
+      - name: PGDATA
+        value: /var/lib/postgresql/data/pgdata
+    extendedConfiguration: |
+      max_connections = 200
+      shared_buffers = 256MB
+      effective_cache_size = 1GB
+      maintenance_work_mem = 64MB
+      checkpoint_completion_target = 0.9
+      wal_buffers = 16MB
+      default_statistics_target = 100
+      random_page_cost = 1.1
+      effective_io_concurrency = 200
+      work_mem = 4MB
+      min_wal_size = 1GB
+      max_wal_size = 4GB
+  metrics:
+    enabled: true
+    image:
+      repository: prometheuscommunity/postgres-exporter
+      tag: v0.15.0
+
+# ── Redis ─────────────────────────────────────────────────────────────────────
+redis:
+  enabled: true
+  name: iga-redis
+  image:
+    repository: redis
+    tag: "7-alpine"
+    pullPolicy: IfNotPresent
+  auth:
+    enabled: true
+    existingSecret: iga-backend-secrets
+    existingSecretPasswordKey: REDIS_PASSWORD
+  master:
+    resources:
+      requests:
+        cpu: "100m"
+        memory: "128Mi"
+      limits:
+        cpu: "1000m"
+        memory: "768Mi"
+    persistence:
+      enabled: true
+      size: 8Gi
+    configuration: |
+      appendonly yes
+      appendfsync everysec
+      maxmemory 512mb
+      maxmemory-policy allkeys-lru
+      tcp-keepalive 300
+  metrics:
+    enabled: true
+    image:
+      repository: oliver006/redis_exporter
+      tag: v1.62.0
+
+# ── RabbitMQ ──────────────────────────────────────────────────────────────────
+rabbitmq:
+  enabled: true
+  name: iga-rabbitmq
+  image:
+    repository: rabbitmq
+    tag: "3.13-management-alpine"
+    pullPolicy: IfNotPresent
+  auth:
+    username: iga_user
+    existingPasswordSecret: iga-backend-secrets
+    existingPasswordSecretKey: RABBITMQ_PASSWORD
+  extraConfiguration: |
+    default_vhost = iga_vhost
+    log.console.level = warning
+  resources:
+    requests:
+      cpu: "200m"
+      memory: "256Mi"
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
+  persistence:
+    enabled: true
+    size: 8Gi
+  metrics:
+    enabled: true
+
+# ── MinIO ─────────────────────────────────────────────────────────────────────
+minio:
+  enabled: true
+  name: iga-minio
+  image:
+    repository: minio/minio
+    tag: "latest"
+    pullPolicy: IfNotPresent
+  auth:
+    existingSecret: iga-backend-secrets
+    accessKey: MINIO_ACCESS_KEY
+    secretKey: MINIO_SECRET_KEY
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
+  persistence:
+    enabled: true
+    size: 100Gi
+  defaultBuckets: "iga-reports,iga-avatars,iga-exports,iga-imports"
+
+# ── Prometheus ────────────────────────────────────────────────────────────────
+prometheus:
+  enabled: true
+  name: iga-prometheus
+  image:
+    repository: prom/prometheus
+    tag: "v2.55.1"
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "512Mi"
+    limits:
+      cpu: "1000m"
+      memory: "2Gi"
+  retention: 30d
+  retentionSize: 10GB
+  persistence:
+    enabled: true
+    size: 50Gi
+  configMapName: iga-prometheus-config
+  alertRulesConfigMapName: iga-alert-rules
+
+# ── Grafana ───────────────────────────────────────────────────────────────────
+grafana:
+  enabled: true
+  name: iga-grafana
+  image:
+    repository: grafana/grafana
+    tag: "11.3.0"
+  adminUser: admin
+  adminPasswordSecret: iga-backend-secrets
+  adminPasswordKey: GRAFANA_ADMIN_PASSWORD
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "128Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+  persistence:
+    enabled: true
+    size: 10Gi
+  datasources:
+    prometheus:
+      url: http://iga-prometheus:9090
+    elasticsearch:
+      url: http://iga-elasticsearch:9200
+
+# ── Elasticsearch ─────────────────────────────────────────────────────────────
+elasticsearch:
+  enabled: true
+  name: iga-elasticsearch
+  image:
+    repository: docker.elastic.co/elasticsearch/elasticsearch
+    tag: "7.17.25"
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "2000m"
+      memory: "2Gi"
+  javaOpts: "-Xms1g -Xmx1g"
+  persistence:
+    enabled: true
+    size: 100Gi
+
+# ── Logstash ──────────────────────────────────────────────────────────────────
+logstash:
+  enabled: true
+  name: iga-logstash
+  image:
+    repository: docker.elastic.co/logstash/logstash
+    tag: "7.17.25"
+  resources:
+    requests:
+      cpu: "200m"
+      memory: "512Mi"
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
+  javaOpts: "-Xms512m -Xmx512m"
+
+# ── Kibana ────────────────────────────────────────────────────────────────────
+kibana:
+  enabled: true
+  name: iga-kibana
+  image:
+    repository: docker.elastic.co/kibana/kibana
+    tag: "7.17.25"
+  resources:
+    requests:
+      cpu: "200m"
+      memory: "512Mi"
+    limits:
+      cpu: "1000m"
+      memory: "1Gi"
+
+# ── Migrations Job ────────────────────────────────────────────────────────────
+migrations:
+  enabled: true
+  # Run as a Helm pre-upgrade hook Job
+  hookWeight: "-5"
+  command:
+    - alembic
+    - upgrade
+    - head
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+
+# ── Namespace ─────────────────────────────────────────────────────────────────
+namespaceCreate: true
+
+# ── Network Policies ──────────────────────────────────────────────────────────
+networkPolicy:
+  enabled: true
+  # Only allow intra-namespace traffic + ingress from ingress-nginx
+  allowIngressFromNamespaces:
+    - ingress-nginx
+    - monitoring
+
+# ── Pod Security Standards ────────────────────────────────────────────────────
+podSecurityStandards:
+  enforce: restricted
+  audit: restricted
+  warn: restricted
+
+# ── Service Account ───────────────────────────────────────────────────────────
+serviceAccount:
+  create: true
+  name: iga-backend
+  annotations: {}
+  # For IRSA (AWS): eks.amazonaws.com/role-arn: arn:aws:iam::123456789:role/iga-role
+
+# ── Image Pull Secrets ────────────────────────────────────────────────────────
+imagePullSecrets: []
+# - name: regcred

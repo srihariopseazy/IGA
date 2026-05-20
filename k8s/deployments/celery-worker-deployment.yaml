@@ -1,0 +1,168 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: iga-celery-worker
+  namespace: iga
+  labels:
+    app: iga-celery-worker
+    component: worker
+    version: "1.0.0"
+spec:
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app: iga-celery-worker
+  template:
+    metadata:
+      labels:
+        app: iga-celery-worker
+        component: worker
+        version: "1.0.0"
+      annotations:
+        prometheus.io/scrape: "false"
+    spec:
+      serviceAccountName: iga-backend
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      terminationGracePeriodSeconds: 120
+      containers:
+        - name: celery-worker
+          image: iga-backend:latest
+          imagePullPolicy: Always
+          command:
+            - celery
+            - -A
+            - backend.celery_app
+            - worker
+            - --loglevel=info
+            - --concurrency=4
+            - --max-tasks-per-child=1000
+            - --queues=default,provisioning,notifications,risk_scoring,certification
+            - --hostname=worker@%h
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: iga-secrets
+                  key: database-url
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: iga-secrets
+                  key: redis-url
+            - name: CELERY_BROKER_URL
+              valueFrom:
+                secretKeyRef:
+                  name: iga-secrets
+                  key: celery-broker-url
+            - name: CELERY_RESULT_BACKEND
+              valueFrom:
+                secretKeyRef:
+                  name: iga-secrets
+                  key: celery-result-backend
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: iga-secrets
+                  key: secret-key
+            - name: ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: iga-secrets
+                  key: encryption-key
+            - name: ENVIRONMENT
+              valueFrom:
+                configMapKeyRef:
+                  name: iga-backend-config
+                  key: ENVIRONMENT
+            - name: MINIO_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: iga-backend-config
+                  key: MINIO_ENDPOINT
+            - name: MINIO_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: iga-secrets
+                  key: minio-access-key
+            - name: MINIO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: iga-secrets
+                  key: minio-secret-key
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: iga-secrets
+                  key: smtp-password
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "2000m"
+              memory: "1Gi"
+          livenessProbe:
+            exec:
+              command:
+                - bash
+                - -c
+                - celery -A backend.celery_app inspect ping -d celery@$HOSTNAME --timeout 5
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - iga-celery-worker
+                topologyKey: kubernetes.io/hostname
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: iga-celery-worker-hpa
+  namespace: iga
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: iga-celery-worker
+  minReplicas: 2
+  maxReplicas: 8
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
