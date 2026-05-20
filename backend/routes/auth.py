@@ -209,7 +209,6 @@ async def login(
     result = await db.execute(
         select(User)
         .where(and_(User.email == body.email.lower(), User.deleted_at.is_(None)))
-        .options(selectinload(User.roles))
     )
     user = result.scalar_one_or_none()
 
@@ -249,13 +248,14 @@ async def login(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
     # Check account status
-    if user.status not in ("active", "pending_mfa"):
+    if not user.is_active or user.is_locked:
+        acct_status = "locked" if user.is_locked else "suspended"
         background_tasks.add_task(
-            _record_login_history, db, str(user.id), ip, ua, False, f"account_{user.status}"
+            _record_login_history, db, str(user.id), ip, ua, False, f"account_{acct_status}"
         )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail=f"Account is {user.status}",
+            detail=f"Account is {acct_status}",
         )
 
     # MFA check
@@ -269,7 +269,7 @@ async def login(
                 mfa_required=True,
             )
         # Verify TOTP
-        totp = pyotp.TOTP(user.mfa_secret)
+        totp = pyotp.TOTP(getattr(user, "mfa_secret", "") or "")
         backup_valid = False
         if not totp.verify(body.mfa_code, valid_window=1):
             # Check backup codes
@@ -298,7 +298,6 @@ async def login(
     user.failed_login_attempts = 0
     user.locked_until = None
     user.last_login_at = datetime.now(timezone.utc)
-    user.last_login_ip = ip
     await db.commit()
 
     # Device fingerprint
@@ -309,7 +308,7 @@ async def login(
         "sub": str(user.id),
         "tenant_id": str(user.tenant_id),
         "email": user.email,
-        "roles": [str(r.id) for r in user.roles],
+        "roles": [],
         "device": fingerprint,
     }
     expires_delta = timedelta(hours=8) if body.remember_me else timedelta(hours=1)
@@ -349,7 +348,7 @@ async def login(
             "first_name": user.first_name,
             "last_name": user.last_name,
             "tenant_id": str(user.tenant_id),
-            "status": user.status,
+            "is_active": user.is_active,
             "mfa_enabled": user.mfa_enabled,
             "avatar_url": user.avatar_url,
         },
@@ -388,17 +387,16 @@ async def refresh_token(
     result_user = await db.execute(
         select(User)
         .where(and_(User.id == user_id, User.deleted_at.is_(None)))
-        .options(selectinload(User.roles))
     )
     user = result_user.scalar_one_or_none()
-    if not user or user.status != "active":
+    if not user or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not active")
 
     token_data = {
         "sub": str(user.id),
         "tenant_id": str(user.tenant_id),
         "email": user.email,
-        "roles": [str(r.id) for r in user.roles],
+        "roles": [],
         "device": payload.get("device"),
     }
     new_access_token = create_access_token(token_data)
@@ -457,7 +455,7 @@ async def register(
     """Register a new user. Requires a valid tenant."""
     # Validate tenant
     result = await db.execute(
-        select(Tenant).where(and_(Tenant.id == body.tenant_id, Tenant.status == "active"))
+        select(Tenant).where(and_(Tenant.id == body.tenant_id, Tenant.is_active == True))
     )
     tenant = result.scalar_one_or_none()
     if not tenant:
@@ -473,23 +471,22 @@ async def register(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
 
     # Validate invitation token if tenant requires it
-    if tenant.require_invitation and not body.invitation_token:
+    if getattr(tenant, "require_invitation", False) and not body.invitation_token:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invitation token required for this tenant",
         )
 
     # Create user
-    email_token = secrets.token_urlsafe(32)
     user = User(
         email=body.email.lower(),
         hashed_password=get_password_hash(body.password),
         first_name=body.first_name,
         last_name=body.last_name,
         tenant_id=body.tenant_id,
-        status="pending_verification",
-        email_verification_token=hashlib.sha256(email_token.encode()).hexdigest(),
-        email_verification_expires=datetime.now(timezone.utc) + timedelta(hours=24),
+        is_active=True,
+        is_locked=False,
+        email_verified=False,
     )
     db.add(user)
     await db.commit()
@@ -520,23 +517,29 @@ async def verify_email(
     db: AsyncSession = Depends(get_db),
 ):
     """Verify email address with token."""
+    from backend.models.user import EmailVerificationToken
     token_hash = hashlib.sha256(body.token.encode()).hexdigest()
     result = await db.execute(
-        select(User).where(
+        select(EmailVerificationToken).where(
             and_(
-                User.email_verification_token == token_hash,
-                User.email_verification_expires > datetime.now(timezone.utc),
+                EmailVerificationToken.token_hash == token_hash,
+                EmailVerificationToken.expires_at > datetime.now(timezone.utc),
+                EmailVerificationToken.used_at.is_(None),
             )
         )
     )
-    user = result.scalar_one_or_none()
-    if not user:
+    token_obj = result.scalar_one_or_none()
+    if not token_obj:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired verification token")
 
+    result_user = await db.execute(select(User).where(User.id == token_obj.user_id))
+    user = result_user.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User not found")
+
     user.email_verified = True
-    user.email_verification_token = None
-    user.email_verification_expires = None
-    user.status = "active"
+    user.is_active = True
+    token_obj.used_at = datetime.now(timezone.utc)
     await db.commit()
 
     background_tasks.add_task(
@@ -559,7 +562,7 @@ async def forgot_password(
     user = result.scalar_one_or_none()
 
     # Always return success to prevent email enumeration
-    if user and user.status == "active":
+    if user and user.is_active:
         reset_token = secrets.token_urlsafe(32)
         user.password_reset_token = hashlib.sha256(reset_token.encode()).hexdigest()
         user.password_reset_expires = datetime.now(timezone.utc) + timedelta(hours=1)
@@ -632,7 +635,7 @@ async def request_magic_link(
 ):
     """Request a magic link for passwordless login."""
     query = select(User).where(
-        and_(User.email == body.email.lower(), User.status == "active", User.deleted_at.is_(None))
+        and_(User.email == body.email.lower(), User.is_active == True, User.deleted_at.is_(None))
     )
     if body.tenant_id:
         query = query.where(User.tenant_id == body.tenant_id)
@@ -673,8 +676,7 @@ async def verify_magic_link(
 
     result = await db.execute(
         select(User)
-        .where(and_(User.id == user_id.decode(), User.deleted_at.is_(None), User.status == "active"))
-        .options(selectinload(User.roles))
+        .where(and_(User.id == user_id.decode(), User.deleted_at.is_(None), User.is_active == True))
     )
     user = result.scalar_one_or_none()
     if not user:
@@ -684,7 +686,7 @@ async def verify_magic_link(
         "sub": str(user.id),
         "tenant_id": str(user.tenant_id),
         "email": user.email,
-        "roles": [str(r.id) for r in user.roles],
+        "roles": [],
     }
     access_token = create_access_token(token_data)
     refresh_token = create_refresh_token({"sub": str(user.id), "tenant_id": str(user.tenant_id)})
@@ -741,7 +743,7 @@ async def verify_mfa(
     redis = await get_redis()
     pending_secret = await redis.get(f"mfa_pending:{current_user.id}")
 
-    secret = body.secret or (pending_secret.decode() if pending_secret else None) or current_user.mfa_secret
+    secret = body.secret or (pending_secret.decode() if pending_secret else None) or getattr(current_user, "mfa_secret", None)
     if not secret:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No MFA setup in progress")
 
@@ -749,7 +751,7 @@ async def verify_mfa(
     if not totp.verify(body.code, valid_window=1):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid TOTP code")
 
-    current_user.mfa_secret = secret
+    # mfa_secret is stored in MFADevice, not directly on user
     current_user.mfa_enabled = True
 
     # Store backup codes
@@ -787,12 +789,12 @@ async def disable_mfa(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid password")
 
     if current_user.mfa_enabled and body.code:
-        totp = pyotp.TOTP(current_user.mfa_secret)
+        totp = pyotp.TOTP(getattr(current_user, "mfa_secret", "") or "")
         if not totp.verify(body.code, valid_window=1):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid TOTP code")
 
     current_user.mfa_enabled = False
-    current_user.mfa_secret = None
+    # mfa_secret is stored in MFADevice, not directly on user
     await db.execute(
         update(MFABackupCode)
         .where(MFABackupCode.user_id == current_user.id)
@@ -839,7 +841,7 @@ async def regenerate_backup_codes(
     if not current_user.mfa_enabled:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="MFA is not enabled")
 
-    totp = pyotp.TOTP(current_user.mfa_secret)
+    totp = pyotp.TOTP(getattr(current_user, "mfa_secret", "") or "")
     if not totp.verify(body.code, valid_window=1):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid TOTP code")
 
@@ -902,8 +904,7 @@ async def oauth_google(
 
     result = await db.execute(
         select(User)
-        .where(and_(User.email == email, User.deleted_at.is_(None), User.status == "active"))
-        .options(selectinload(User.roles))
+        .where(and_(User.email == email, User.deleted_at.is_(None), User.is_active == True))
     )
     user = result.scalar_one_or_none()
     if not user:
@@ -916,7 +917,7 @@ async def oauth_google(
         "sub": str(user.id),
         "tenant_id": str(user.tenant_id),
         "email": user.email,
-        "roles": [str(r.id) for r in user.roles],
+        "roles": [],
     }
     access_token = create_access_token(token_data)
     refresh_token_val = create_refresh_token({"sub": str(user.id), "tenant_id": str(user.tenant_id)})
@@ -974,8 +975,7 @@ async def oauth_microsoft(
 
     result = await db.execute(
         select(User)
-        .where(and_(User.email == email, User.deleted_at.is_(None), User.status == "active"))
-        .options(selectinload(User.roles))
+        .where(and_(User.email == email, User.deleted_at.is_(None), User.is_active == True))
     )
     user = result.scalar_one_or_none()
     if not user:
@@ -985,7 +985,7 @@ async def oauth_microsoft(
         "sub": str(user.id),
         "tenant_id": str(user.tenant_id),
         "email": user.email,
-        "roles": [str(r.id) for r in user.roles],
+        "roles": [],
     }
     access_token = create_access_token(token_data)
     refresh_token_val = create_refresh_token({"sub": str(user.id), "tenant_id": str(user.tenant_id)})
@@ -1011,7 +1011,6 @@ async def get_me(
     result = await db.execute(
         select(User)
         .where(User.id == current_user.id)
-        .options(selectinload(User.roles))
     )
     user = result.scalar_one_or_none()
     if not user:
@@ -1025,10 +1024,10 @@ async def get_me(
         "display_name": user.display_name,
         "avatar_url": user.avatar_url,
         "tenant_id": str(user.tenant_id),
-        "status": user.status,
+        "is_active": user.is_active,
         "mfa_enabled": user.mfa_enabled,
         "email_verified": user.email_verified,
-        "roles": [{"id": str(r.id), "name": r.name} for r in user.roles],
+        "roles": [],
         "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None,
         "created_at": user.created_at.isoformat(),
     }

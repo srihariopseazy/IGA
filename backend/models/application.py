@@ -20,13 +20,13 @@ from backend.database import Base
 
 
 class Application(Base):
-    __tablename__ = "application"
+    __tablename__ = "applications"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
 
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -35,7 +35,7 @@ class Application(Base):
     app_type = Column(String(100), nullable=False, default="web", index=True)
     owner_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("user.id", ondelete="SET NULL"),
+        ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )
@@ -61,8 +61,8 @@ class Application(Base):
     user_entitlements = relationship("UserEntitlement", back_populates="application", lazy="select")
 
     __table_args__ = (
-        Index("ix_application_tenant_name", "tenant_id", "name"),
-        Index("ix_application_tenant_active", "tenant_id", "is_active"),
+        Index("ix_applications_tenant_name", "tenant_id", "name"),
+        Index("ix_applications_tenant_active", "tenant_id", "is_active"),
     )
 
     def __repr__(self) -> str:
@@ -70,19 +70,19 @@ class Application(Base):
 
 
 class Entitlement(Base):
-    __tablename__ = "entitlement"
+    __tablename__ = "app_entitlements"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
 
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     application_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("application.id", ondelete="CASCADE"),
+        ForeignKey("applications.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -104,8 +104,8 @@ class Entitlement(Base):
     user_entitlements = relationship("UserEntitlement", back_populates="entitlement", lazy="select")
 
     __table_args__ = (
-        Index("ix_entitlement_app_name", "application_id", "name"),
-        Index("ix_entitlement_tenant_type", "tenant_id", "entitlement_type"),
+        Index("ix_app_entitlements_app_name", "application_id", "name"),
+        Index("ix_app_entitlements_tenant_type", "tenant_id", "entitlement_type"),
     )
 
     def __repr__(self) -> str:
@@ -113,31 +113,31 @@ class Entitlement(Base):
 
 
 class UserEntitlement(Base):
-    __tablename__ = "user_entitlement"
+    __tablename__ = "app_account_entitlements"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
 
     user_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("user.id", ondelete="CASCADE"),
+        ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     entitlement_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("entitlement.id", ondelete="CASCADE"),
+        ForeignKey("app_entitlements.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     application_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("application.id", ondelete="CASCADE"),
+        ForeignKey("applications.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -162,9 +162,9 @@ class UserEntitlement(Base):
     application = relationship("Application", back_populates="user_entitlements")
 
     __table_args__ = (
-        Index("ix_user_entitlement_user_app", "user_id", "application_id"),
-        Index("ix_user_entitlement_tenant_user", "tenant_id", "user_id"),
-        Index("ix_user_entitlement_user_entitlement", "user_id", "entitlement_id"),
+        Index("ix_app_account_entitlements_user_app", "user_id", "application_id"),
+        Index("ix_app_account_entitlements_tenant_user", "tenant_id", "user_id"),
+        Index("ix_app_account_entitlements_user_entitlement", "user_id", "entitlement_id"),
     )
 
     def __repr__(self) -> str:

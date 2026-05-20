@@ -21,13 +21,13 @@ from backend.database import Base
 
 
 class CertificationCampaign(Base):
-    __tablename__ = "certification_campaign"
+    __tablename__ = "certification_campaigns"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
 
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -63,8 +63,8 @@ class CertificationCampaign(Base):
     reviewers = relationship("CertificationReviewer", back_populates="campaign", lazy="select")
 
     __table_args__ = (
-        Index("ix_cert_campaign_tenant_status", "tenant_id", "status"),
-        Index("ix_cert_campaign_tenant_type", "tenant_id", "campaign_type"),
+        Index("ix_certification_campaigns_tenant_status", "tenant_id", "status"),
+        Index("ix_certification_campaigns_tenant_type", "tenant_id", "campaign_type"),
     )
 
     def __repr__(self) -> str:
@@ -74,25 +74,25 @@ class CertificationCampaign(Base):
 
 
 class CertificationItem(Base):
-    __tablename__ = "certification_item"
+    __tablename__ = "certification_items"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
 
     campaign_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("certification_campaign.id", ondelete="CASCADE"),
+        ForeignKey("certification_campaigns.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     user_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("user.id", ondelete="CASCADE"),
+        ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -100,7 +100,7 @@ class CertificationItem(Base):
     item_id = Column(UUID(as_uuid=True), nullable=False, index=True)
     reviewer_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("user.id", ondelete="SET NULL"),
+        ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )
@@ -123,9 +123,9 @@ class CertificationItem(Base):
     reviewer = relationship("User", foreign_keys=[reviewer_id])
 
     __table_args__ = (
-        Index("ix_cert_item_campaign_status", "campaign_id", "status"),
-        Index("ix_cert_item_reviewer_status", "reviewer_id", "status"),
-        Index("ix_cert_item_user_campaign", "user_id", "campaign_id"),
+        Index("ix_certification_items_campaign_status", "campaign_id", "status"),
+        Index("ix_certification_items_reviewer_status", "reviewer_id", "status"),
+        Index("ix_certification_items_user_campaign", "user_id", "campaign_id"),
     )
 
     def __repr__(self) -> str:
@@ -142,25 +142,25 @@ class CertificationReviewer(Base):
 
     campaign_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("certification_campaign.id", ondelete="CASCADE"),
+        ForeignKey("certification_campaigns.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     reviewer_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("user.id", ondelete="CASCADE"),
+        ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     delegate_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("user.id", ondelete="SET NULL"),
+        ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
     )
     scope = Column(JSONB, nullable=True, default=dict)
@@ -174,6 +174,7 @@ class CertificationReviewer(Base):
 
     __table_args__ = (
         Index("ix_cert_reviewer_campaign_reviewer", "campaign_id", "reviewer_id", unique=True),
+        {"extend_existing": True},
     )
 
     def __repr__(self) -> str:

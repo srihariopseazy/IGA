@@ -84,9 +84,9 @@ async def list_tenants(
             Tenant.name.ilike(f"%{search}%") | Tenant.slug.ilike(f"%{search}%")
         )
     if tenant_status:
-        query = query.where(Tenant.status == tenant_status)
+        query = query.where(Tenant.is_active == (tenant_status == "active"))
     if plan:
-        query = query.where(Tenant.plan == plan)
+        query = query.where(Tenant.plan_tier == plan)
 
     total_result = await db.execute(select(func.count()).select_from(query.subquery()))
     total = total_result.scalar()
@@ -180,7 +180,7 @@ async def update_tenant(
     if data.domain is not None:
         tenant.domain = data.domain
     if data.plan is not None:
-        tenant.plan = data.plan
+        tenant.plan_tier = data.plan
     if data.max_users is not None:
         tenant.max_users = data.max_users
 
@@ -200,10 +200,10 @@ async def suspend_tenant(
     tenant = result.scalar_one_or_none()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
-    if tenant.status == "suspended":
+    if not tenant.is_active:
         raise HTTPException(status_code=400, detail="Tenant is already suspended")
 
-    tenant.status = "suspended"
+    tenant.is_active = False
     settings_data = dict(tenant.settings or {})
     settings_data["suspension_reason"] = data.reason
     settings_data["suspended_by"] = str(current_user.id)
@@ -237,7 +237,7 @@ async def activate_tenant(
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
-    tenant.status = "active"
+    tenant.is_active = True
     settings_data = dict(tenant.settings or {})
     settings_data["activated_by"] = str(current_user.id)
     settings_data["activated_at"] = datetime.now(timezone.utc).isoformat()
@@ -281,7 +281,7 @@ async def get_tenant_usage(
     return {
         "tenant_id": str(tenant_id),
         "tenant_name": tenant.name,
-        "plan": tenant.plan,
+        "plan": tenant.plan_tier,
         "max_users": tenant.max_users,
         "period": period,
         "usage_history": [u.to_dict() for u in usage_records],
@@ -315,7 +315,7 @@ async def get_tenant_stats(
             select(func.count(User.id)).where(
                 and_(
                     User.tenant_id == tenant_id,
-                    User.status == "active",
+                    User.is_active == True,
                     User.deleted_at.is_(None),
                 )
             )
@@ -421,7 +421,12 @@ async def list_tenant_users(
             | User.last_name.ilike(f"%{search}%")
         )
     if user_status:
-        query = query.where(User.status == user_status)
+        if user_status == "active":
+            query = query.where(User.is_active == True)
+        elif user_status in ("inactive", "suspended"):
+            query = query.where(User.is_active == False)
+        elif user_status == "locked":
+            query = query.where(User.is_locked == True)
 
     total_result = await db.execute(select(func.count()).select_from(query.subquery()))
     total = total_result.scalar()

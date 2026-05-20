@@ -337,27 +337,30 @@ def _register_routers(app: FastAPI) -> None:
     prefix = settings.API_V1_PREFIX
 
     router_configs = [
+        # Routes WITHOUT their own prefix — main.py provides the path suffix
         ("backend.routes.auth", "/auth", ["auth"]),
-        ("backend.routes.users", "/users", ["users"]),
         ("backend.routes.roles", "/roles", ["roles"]),
-        ("backend.routes.permissions", "/permissions", ["permissions"]),
-        ("backend.routes.departments", "/departments", ["departments"]),
-        ("backend.routes.applications", "/applications", ["applications"]),
-        ("backend.routes.entitlements", "/entitlements", ["entitlements"]),
-        ("backend.routes.access_requests", "/access-requests", ["access-requests"]),
-        ("backend.routes.approvals", "/approvals", ["approvals"]),
-        ("backend.routes.workflows", "/workflows", ["workflows"]),
-        ("backend.routes.certifications", "/certifications", ["certifications"]),
-        ("backend.routes.sod", "/sod", ["sod"]),
-        ("backend.routes.provisioning", "/provisioning", ["provisioning"]),
-        ("backend.routes.connectors", "/connectors", ["connectors"]),
-        ("backend.routes.audit", "/audit", ["audit"]),
-        ("backend.routes.compliance", "/compliance", ["compliance"]),
-        ("backend.routes.risk", "/risk", ["risk"]),
-        ("backend.routes.pam", "/pam", ["pam"]),
-        ("backend.routes.notifications", "/notifications", ["notifications"]),
-        ("backend.routes.tenants", "/tenants", ["tenants"]),
         ("backend.routes.health", "/health", ["health"]),
+        ("backend.routes.dashboard", "/dashboard", ["dashboard"]),
+        # Routes WITH their own prefix — use "" so the router's own prefix is used
+        ("backend.routes.users", "", ["users"]),
+        ("backend.routes.permissions", "", ["permissions"]),
+        ("backend.routes.departments", "", ["departments"]),
+        ("backend.routes.applications", "", ["applications"]),
+        ("backend.routes.entitlements", "", ["entitlements"]),
+        ("backend.routes.access_requests", "", ["access-requests"]),
+        ("backend.routes.approvals", "", ["approvals"]),
+        ("backend.routes.workflows", "", ["workflows"]),
+        ("backend.routes.certifications", "", ["certifications"]),
+        ("backend.routes.sod", "", ["sod"]),
+        ("backend.routes.provisioning", "", ["provisioning"]),
+        ("backend.routes.connectors", "", ["connectors"]),
+        ("backend.routes.audit", "", ["audit"]),
+        ("backend.routes.compliance", "", ["compliance"]),
+        ("backend.routes.risk", "", ["risk"]),
+        ("backend.routes.pam", "", ["pam"]),
+        ("backend.routes.notifications", "", ["notifications"]),
+        ("backend.routes.tenants", "", ["tenants"]),
     ]
 
     for module_path, path_suffix, tags in router_configs:

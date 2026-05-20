@@ -14,7 +14,6 @@ from sqlalchemy import (
     Text,
     ForeignKey,
     Index,
-    Enum as SAEnum,
 )
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship, Mapped
@@ -26,22 +25,22 @@ if TYPE_CHECKING:
 
 
 class Tenant(Base):
-    __tablename__ = "tenant"
+    __tablename__ = "tenants"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
 
     name = Column(String(255), nullable=False)
+    display_name = Column(String(255), nullable=True)
     slug = Column(String(100), nullable=False, unique=True, index=True)
     domain = Column(String(255), nullable=True, unique=True, index=True)
-    status = Column(
-        SAEnum("active", "suspended", "trial", name="tenant_status_enum"),
-        nullable=False,
-        default="trial",
-        index=True,
-    )
-    plan = Column(String(50), nullable=False, default="free")
+    logo_url = Column(Text, nullable=True)
+    is_active = Column(Boolean, nullable=False, default=True, index=True)
+    is_trial = Column(Boolean, nullable=False, default=False)
+    trial_expires_at = Column(DateTime(timezone=True), nullable=True)
+    plan_tier = Column(String(50), nullable=False, default="free")
     max_users = Column(Integer, nullable=False, default=100)
     settings = Column(JSONB, nullable=True, default=dict)
+    metadata = Column(JSONB, nullable=True, default=dict)
 
     # Relationships
     branding = relationship(
@@ -52,7 +51,7 @@ class Tenant(Base):
     )
 
     __table_args__ = (
-        Index("ix_tenant_slug_status", "slug", "status"),
+        Index("ix_tenants_slug_active", "slug", "is_active"),
     )
 
     def __repr__(self) -> str:
@@ -66,7 +65,7 @@ class TenantBranding(Base):
 
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         unique=True,
         index=True,
@@ -93,7 +92,7 @@ class TenantUsageMetering(Base):
 
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )

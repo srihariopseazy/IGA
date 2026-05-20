@@ -26,7 +26,7 @@ class SODPolicy(Base):
 
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -53,6 +53,7 @@ class SODPolicy(Base):
 
     __table_args__ = (
         Index("ix_sod_policy_tenant_status", "tenant_id", "status"),
+        {"extend_existing": True},
     )
 
     def __repr__(self) -> str:
@@ -60,7 +61,7 @@ class SODPolicy(Base):
 
 
 class SODRule(Base):
-    __tablename__ = "sod_rule"
+    __tablename__ = "sod_rules"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
 
@@ -72,20 +73,20 @@ class SODRule(Base):
     )
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     name = Column(String(255), nullable=False)
     role_id_1 = Column(
         UUID(as_uuid=True),
-        ForeignKey("role.id", ondelete="CASCADE"),
+        ForeignKey("roles.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     role_id_2 = Column(
         UUID(as_uuid=True),
-        ForeignKey("role.id", ondelete="CASCADE"),
+        ForeignKey("roles.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -99,8 +100,8 @@ class SODRule(Base):
     violations = relationship("SODViolation", back_populates="sod_rule", lazy="select")
 
     __table_args__ = (
-        Index("ix_sod_rule_policy", "policy_id"),
-        Index("ix_sod_rule_roles", "role_id_1", "role_id_2"),
+        Index("ix_sod_rules_policy", "policy_id"),
+        Index("ix_sod_rules_roles", "role_id_1", "role_id_2"),
     )
 
     def __repr__(self) -> str:
@@ -111,30 +112,30 @@ class SODRule(Base):
 
 
 class SODViolation(Base):
-    __tablename__ = "sod_violation"
+    __tablename__ = "sod_violations"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
 
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     sod_rule_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("sod_rule.id", ondelete="CASCADE"),
+        ForeignKey("sod_rules.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     user_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("user.id", ondelete="CASCADE"),
+        ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    role_id_1 = Column(UUID(as_uuid=True), ForeignKey("role.id"), nullable=False)
-    role_id_2 = Column(UUID(as_uuid=True), ForeignKey("role.id"), nullable=False)
+    role_id_1 = Column(UUID(as_uuid=True), ForeignKey("roles.id"), nullable=False)
+    role_id_2 = Column(UUID(as_uuid=True), ForeignKey("roles.id"), nullable=False)
     detection_date = Column(DateTime(timezone=True), nullable=False)
     status = Column(
         SAEnum("open", "mitigated", "accepted", "resolved", name="sod_violation_status_enum"),
@@ -144,7 +145,7 @@ class SODViolation(Base):
     )
     risk_score = Column(Float, nullable=True)
     mitigation_notes = Column(Text, nullable=True)
-    mitigated_by = Column(UUID(as_uuid=True), ForeignKey("user.id"), nullable=True)
+    mitigated_by = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     mitigated_at = Column(DateTime(timezone=True), nullable=True)
 
     # Relationships
@@ -153,9 +154,9 @@ class SODViolation(Base):
     mitigated_by_user = relationship("User", foreign_keys=[mitigated_by])
 
     __table_args__ = (
-        Index("ix_sod_violation_tenant_status", "tenant_id", "status"),
-        Index("ix_sod_violation_user_status", "user_id", "status"),
-        Index("ix_sod_violation_rule_user", "sod_rule_id", "user_id"),
+        Index("ix_sod_violations_tenant_status", "tenant_id", "status"),
+        Index("ix_sod_violations_user_status", "user_id", "status"),
+        Index("ix_sod_violations_rule_user", "sod_rule_id", "user_id"),
     )
 
     def __repr__(self) -> str:

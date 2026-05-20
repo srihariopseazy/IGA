@@ -26,7 +26,7 @@ class Department(Base):
 
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -40,7 +40,7 @@ class Department(Base):
     )
     manager_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("user.id", ondelete="SET NULL"),
+        ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
     )
     description = Column(Text, nullable=True)
@@ -61,13 +61,13 @@ class Department(Base):
 
 
 class Role(Base):
-    __tablename__ = "role"
+    __tablename__ = "roles"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
 
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -81,7 +81,7 @@ class Role(Base):
     )
     parent_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("role.id", ondelete="SET NULL"),
+        ForeignKey("roles.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )
@@ -106,8 +106,8 @@ class Role(Base):
     )
 
     __table_args__ = (
-        Index("ix_role_tenant_name", "tenant_id", "name"),
-        Index("ix_role_tenant_type", "tenant_id", "role_type"),
+        Index("ix_roles_tenant_name", "tenant_id", "name"),
+        Index("ix_roles_tenant_type", "tenant_id", "role_type"),
     )
 
     def __repr__(self) -> str:
@@ -115,13 +115,13 @@ class Role(Base):
 
 
 class Permission(Base):
-    __tablename__ = "permission"
+    __tablename__ = "permissions"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
 
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -135,7 +135,7 @@ class Permission(Base):
     role_permissions = relationship("RolePermission", back_populates="permission", lazy="select")
 
     __table_args__ = (
-        Index("ix_permission_tenant_resource_action", "tenant_id", "resource", "action"),
+        Index("ix_permissions_tenant_resource_action", "tenant_id", "resource", "action"),
     )
 
     def __repr__(self) -> str:
@@ -149,19 +149,19 @@ class RolePermission(Base):
 
     role_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("role.id", ondelete="CASCADE"),
+        ForeignKey("roles.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     permission_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("permission.id", ondelete="CASCADE"),
+        ForeignKey("permissions.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -179,25 +179,25 @@ class RolePermission(Base):
 
 
 class UserRole(Base):
-    __tablename__ = "user_role"
+    __tablename__ = "user_role_assignments"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
 
     user_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("user.id", ondelete="CASCADE"),
+        ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     role_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("role.id", ondelete="CASCADE"),
+        ForeignKey("roles.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -211,8 +211,8 @@ class UserRole(Base):
     role = relationship("Role", foreign_keys=[role_id])
 
     __table_args__ = (
-        Index("ix_user_role_user_role", "user_id", "role_id"),
-        Index("ix_user_role_tenant_user", "tenant_id", "user_id"),
+        Index("ix_user_role_assignments_user_role", "user_id", "role_id"),
+        Index("ix_user_role_assignments_tenant_user", "tenant_id", "user_id"),
     )
 
     def __repr__(self) -> str:
@@ -226,13 +226,13 @@ class DynamicRoleRule(Base):
 
     role_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("role.id", ondelete="CASCADE"),
+        ForeignKey("roles.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )

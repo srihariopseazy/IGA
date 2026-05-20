@@ -21,13 +21,13 @@ from backend.database import Base
 
 
 class ApprovalWorkflow(Base):
-    __tablename__ = "approval_workflow"
+    __tablename__ = "workflow_definitions"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
 
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -45,8 +45,8 @@ class ApprovalWorkflow(Base):
     instances = relationship("WorkflowInstance", back_populates="workflow", lazy="select")
 
     __table_args__ = (
-        Index("ix_approval_workflow_tenant_type", "tenant_id", "workflow_type"),
-        Index("ix_approval_workflow_tenant_active", "tenant_id", "is_active"),
+        Index("ix_workflow_definitions_tenant_type", "tenant_id", "workflow_type"),
+        Index("ix_workflow_definitions_tenant_active", "tenant_id", "is_active"),
     )
 
     def __repr__(self) -> str:
@@ -60,13 +60,13 @@ class WorkflowStep(Base):
 
     workflow_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("approval_workflow.id", ondelete="CASCADE"),
+        ForeignKey("workflow_definitions.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -100,6 +100,7 @@ class WorkflowStep(Base):
 
     __table_args__ = (
         Index("ix_workflow_step_workflow_order", "workflow_id", "order_index"),
+        {"extend_existing": True},
     )
 
     def __repr__(self) -> str:
@@ -110,19 +111,19 @@ class WorkflowStep(Base):
 
 
 class WorkflowInstance(Base):
-    __tablename__ = "workflow_instance"
+    __tablename__ = "workflow_instances"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
 
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     workflow_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("approval_workflow.id", ondelete="CASCADE"),
+        ForeignKey("workflow_definitions.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -147,8 +148,8 @@ class WorkflowInstance(Base):
     step_instances = relationship("WorkflowStepInstance", back_populates="workflow_instance", lazy="select")
 
     __table_args__ = (
-        Index("ix_workflow_instance_reference", "reference_id", "reference_type"),
-        Index("ix_workflow_instance_tenant_status", "tenant_id", "status"),
+        Index("ix_workflow_instances_reference", "reference_id", "reference_type"),
+        Index("ix_workflow_instances_tenant_status", "tenant_id", "status"),
     )
 
     def __repr__(self) -> str:
@@ -165,7 +166,7 @@ class WorkflowStepInstance(Base):
 
     workflow_instance_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("workflow_instance.id", ondelete="CASCADE"),
+        ForeignKey("workflow_instances.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -177,7 +178,7 @@ class WorkflowStepInstance(Base):
     )
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -192,13 +193,13 @@ class WorkflowStepInstance(Base):
     )
     assignee_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("user.id", ondelete="SET NULL"),
+        ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )
     completed_by_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("user.id", ondelete="SET NULL"),
+        ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
     )
     completed_at = Column(DateTime(timezone=True), nullable=True)
@@ -213,6 +214,7 @@ class WorkflowStepInstance(Base):
     __table_args__ = (
         Index("ix_workflow_step_instance_instance", "workflow_instance_id"),
         Index("ix_workflow_step_instance_assignee_status", "assignee_id", "status"),
+        {"extend_existing": True},
     )
 
     def __repr__(self) -> str:

@@ -19,19 +19,19 @@ from backend.database import Base
 
 
 class Notification(Base):
-    __tablename__ = "notification"
+    __tablename__ = "notifications"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
 
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     user_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("user.id", ondelete="CASCADE"),
+        ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -47,9 +47,9 @@ class Notification(Base):
     user = relationship("User", foreign_keys=[user_id])
 
     __table_args__ = (
-        Index("ix_notification_user_read", "user_id", "is_read"),
-        Index("ix_notification_tenant_user", "tenant_id", "user_id"),
-        Index("ix_notification_reference", "reference_type", "reference_id"),
+        Index("ix_notifications_user_read", "user_id", "is_read"),
+        Index("ix_notifications_tenant_user", "tenant_id", "user_id"),
+        Index("ix_notifications_reference", "reference_type", "reference_id"),
     )
 
     def __repr__(self) -> str:
@@ -66,7 +66,7 @@ class NotificationTemplate(Base):
 
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=True,
         index=True,
     )
@@ -80,6 +80,7 @@ class NotificationTemplate(Base):
     __table_args__ = (
         Index("ix_notification_template_type", "template_type"),
         Index("ix_notification_template_tenant_type", "tenant_id", "template_type"),
+        {"extend_existing": True},
     )
 
     def __repr__(self) -> str:

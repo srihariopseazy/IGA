@@ -21,20 +21,20 @@ from backend.database import Base
 
 
 class RiskScore(Base):
-    __tablename__ = "risk_score"
+    __tablename__ = "risk_scores"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
 
     user_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("user.id", ondelete="CASCADE"),
+        ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
         unique=True,
     )
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -58,8 +58,8 @@ class RiskScore(Base):
     history = relationship("IdentityRiskHistory", back_populates="risk_score_ref", lazy="select")
 
     __table_args__ = (
-        Index("ix_risk_score_tenant_level", "tenant_id", "risk_level"),
-        Index("ix_risk_score_overall", "overall_score"),
+        Index("ix_risk_scores_tenant_level", "tenant_id", "risk_level"),
+        Index("ix_risk_scores_overall", "overall_score"),
     )
 
     def __repr__(self) -> str:
@@ -76,13 +76,13 @@ class IdentityRiskHistory(Base):
 
     user_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("user.id", ondelete="CASCADE"),
+        ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -109,6 +109,7 @@ class IdentityRiskHistory(Base):
     __table_args__ = (
         Index("ix_identity_risk_history_user_date", "user_id", "snapshot_date"),
         Index("ix_identity_risk_history_tenant_date", "tenant_id", "snapshot_date"),
+        {"extend_existing": True},
     )
 
     def __repr__(self) -> str:
@@ -125,13 +126,13 @@ class UserBehaviorEvent(Base):
 
     user_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("user.id", ondelete="CASCADE"),
+        ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -152,6 +153,7 @@ class UserBehaviorEvent(Base):
         Index("ix_user_behavior_event_user_type", "user_id", "event_type"),
         Index("ix_user_behavior_event_tenant_created", "tenant_id", "created_at"),
         Index("ix_user_behavior_event_anomalous", "tenant_id", "is_anomalous"),
+        {"extend_existing": True},
     )
 
     def __repr__(self) -> str:
@@ -168,13 +170,13 @@ class AccessRecommendation(Base):
 
     user_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("user.id", ondelete="CASCADE"),
+        ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -201,6 +203,7 @@ class AccessRecommendation(Base):
     __table_args__ = (
         Index("ix_access_recommendation_user_status", "user_id", "status"),
         Index("ix_access_recommendation_tenant_type", "tenant_id", "recommendation_type"),
+        {"extend_existing": True},
     )
 
     def __repr__(self) -> str:

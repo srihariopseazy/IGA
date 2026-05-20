@@ -214,7 +214,7 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
 # ---------------------------------------------------------------------------
 
 from datetime import datetime, timedelta, timezone  # noqa: E402 — appended helpers
-from jose import jwt as _jose_jwt, JWTError  # noqa: E402
+import jwt as _jwt  # noqa: E402 — PyJWT
 from passlib.context import CryptContext  # noqa: E402
 from fastapi import Depends, HTTPException  # noqa: E402
 from sqlalchemy.ext.asyncio import AsyncSession  # noqa: E402
@@ -236,34 +236,43 @@ def verify_password(plain: str, hashed: str) -> bool:
         return False
 
 
-def create_access_token(data: dict) -> str:
+def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + timedelta(
-        minutes=getattr(settings, "ACCESS_TOKEN_EXPIRE_MINUTES", 15)
-    )
+    if expires_delta is not None:
+        expire = datetime.now(timezone.utc) + expires_delta
+    else:
+        expire = datetime.now(timezone.utc) + timedelta(
+            minutes=getattr(settings, "ACCESS_TOKEN_EXPIRE_MINUTES", 60)
+        )
     to_encode.update({"exp": expire, "type": "access"})
     secret = getattr(settings, "SECRET_KEY", None) or getattr(settings, "JWT_SECRET_KEY", "changeme")
     algo = getattr(settings, "JWT_ALGORITHM", "HS256")
-    return _jose_jwt.encode(to_encode, secret, algorithm=algo)
+    return _jwt.encode(to_encode, secret, algorithm=algo)
 
 
-def create_refresh_token(data: dict) -> str:
+def create_refresh_token(data: dict, expires_delta: timedelta | None = None) -> str:
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + timedelta(
-        days=getattr(settings, "REFRESH_TOKEN_EXPIRE_DAYS", 7)
-    )
+    if expires_delta is not None:
+        expire = datetime.now(timezone.utc) + expires_delta
+    else:
+        expire = datetime.now(timezone.utc) + timedelta(
+            days=getattr(settings, "REFRESH_TOKEN_EXPIRE_DAYS", 7)
+        )
     to_encode.update({"exp": expire, "type": "refresh"})
     secret = getattr(settings, "SECRET_KEY", None) or getattr(settings, "JWT_SECRET_KEY", "changeme")
     algo = getattr(settings, "JWT_ALGORITHM", "HS256")
-    return _jose_jwt.encode(to_encode, secret, algorithm=algo)
+    return _jwt.encode(to_encode, secret, algorithm=algo)
 
 
-def verify_token(token: str) -> dict:
+def verify_token(token: str, token_type: str | None = None) -> dict:
     secret = getattr(settings, "SECRET_KEY", None) or getattr(settings, "JWT_SECRET_KEY", "changeme")
     algo = getattr(settings, "JWT_ALGORITHM", "HS256")
     try:
-        return _jose_jwt.decode(token, secret, algorithms=[algo])
-    except JWTError:
+        payload = _jwt.decode(token, secret, algorithms=[algo])
+        if token_type and payload.get("type") != token_type:
+            raise HTTPException(status_code=401, detail="Invalid token type")
+        return payload
+    except _jwt.InvalidTokenError:
         raise HTTPException(status_code=401, detail="Invalid token")
 
 

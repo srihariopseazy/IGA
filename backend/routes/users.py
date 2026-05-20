@@ -90,20 +90,20 @@ def _user_to_dict(user: User, include_sensitive: bool = False) -> dict:
     d = {
         "id": str(user.id),
         "email": user.email,
+        "username": user.username,
         "first_name": user.first_name,
         "last_name": user.last_name,
         "display_name": user.display_name,
-        "department": user.department,
-        "job_title": user.job_title,
+        "full_name": user.full_name or f"{user.first_name or ''} {user.last_name or ''}".strip(),
         "phone": user.phone,
-        "location": user.location,
         "employee_id": user.employee_id,
-        "status": user.status,
+        "is_active": user.is_active,
+        "is_locked": user.is_locked,
         "avatar_url": user.avatar_url,
         "mfa_enabled": user.mfa_enabled,
         "email_verified": user.email_verified,
         "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None,
-        "created_at": user.created_at.isoformat(),
+        "created_at": user.created_at.isoformat() if user.created_at else None,
         "updated_at": user.updated_at.isoformat() if user.updated_at else None,
         "tenant_id": str(user.tenant_id),
         "manager_id": str(user.manager_id) if user.manager_id else None,
@@ -111,7 +111,6 @@ def _user_to_dict(user: User, include_sensitive: bool = False) -> dict:
     if include_sensitive:
         d["failed_login_attempts"] = user.failed_login_attempts
         d["locked_until"] = user.locked_until.isoformat() if user.locked_until else None
-        d["last_login_ip"] = user.last_login_ip
     return d
 
 # ---------------------------------------------------------------------------
@@ -149,12 +148,15 @@ async def list_users(
         count_query = count_query.where(search_filter)
 
     if status:
-        query = query.where(User.status == status)
-        count_query = count_query.where(User.status == status)
-
-    if department:
-        query = query.where(User.department == department)
-        count_query = count_query.where(User.department == department)
+        if status in ("active",):
+            query = query.where(User.is_active == True)
+            count_query = count_query.where(User.is_active == True)
+        elif status in ("inactive", "suspended"):
+            query = query.where(User.is_active == False)
+            count_query = count_query.where(User.is_active == False)
+        elif status == "locked":
+            query = query.where(User.is_locked == True)
+            count_query = count_query.where(User.is_locked == True)
 
     if role_id:
         query = query.join(UserRole, User.id == UserRole.user_id).where(UserRole.role_id == role_id)
@@ -164,7 +166,6 @@ async def list_users(
     total = total_result.scalar()
 
     query = query.order_by(User.created_at.desc()).offset((page - 1) * page_size).limit(page_size)
-    query = query.options(selectinload(User.roles))
     result = await db.execute(query)
     users = result.scalars().all()
 
@@ -200,16 +201,13 @@ async def create_user(
         first_name=body.first_name,
         last_name=body.last_name,
         display_name=body.display_name or f"{body.first_name} {body.last_name}",
-        department=body.department,
-        job_title=body.job_title,
         manager_id=body.manager_id,
         phone=body.phone,
-        location=body.location,
         employee_id=body.employee_id,
         tenant_id=current_user.tenant_id,
-        status="active",
+        is_active=True,
+        is_locked=False,
         email_verified=False,
-        force_password_change=True,
     )
     db.add(new_user)
     await db.flush()
@@ -227,18 +225,16 @@ async def create_user(
     await db.refresh(new_user)
 
     if body.send_invite:
-        invite_token = secrets.token_urlsafe(32)
-        new_user.email_verification_token = hashlib.sha256(invite_token.encode()).hexdigest()
-        from datetime import timedelta
-        new_user.email_verification_expires = datetime.now(timezone.utc) + timedelta(days=7)
-        await db.commit()
-        background_tasks.add_task(
-            send_email,
-            to=new_user.email,
-            subject="Welcome to IGA Platform",
-            template="user_invitation",
-            context={"token": invite_token, "user": new_user.first_name, "temp_password": temp_password},
-        )
+        try:
+            background_tasks.add_task(
+                send_email,
+                to=new_user.email,
+                subject="Welcome to IGA Platform",
+                template="user_invitation",
+                context={"user": new_user.first_name, "temp_password": temp_password},
+            )
+        except Exception:
+            pass
 
     background_tasks.add_task(
         log_action, db, str(current_user.id), str(current_user.tenant_id),
@@ -258,7 +254,6 @@ async def get_user(
     result = await db.execute(
         select(User)
         .where(and_(User.id == user_id, User.tenant_id == current_user.tenant_id, User.deleted_at.is_(None)))
-        .options(selectinload(User.roles))
     )
     user = result.scalar_one_or_none()
     if not user:
@@ -351,7 +346,7 @@ async def delete_user(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot delete your own account")
 
     user.deleted_at = datetime.now(timezone.utc)
-    user.status = "deleted"
+    user.is_active = False
     await db.commit()
 
     background_tasks.add_task(
@@ -378,7 +373,7 @@ async def lock_user(
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    user.status = "locked"
+    user.is_locked = True
     from datetime import timedelta
     if body.duration_minutes:
         user.locked_until = datetime.now(timezone.utc) + timedelta(minutes=body.duration_minutes)
@@ -387,8 +382,8 @@ async def lock_user(
     # Revoke all active sessions
     await db.execute(
         update(UserSession)
-        .where(and_(UserSession.user_id == user.id, UserSession.revoked == False))
-        .values(revoked=True, revoked_at=datetime.now(timezone.utc))
+        .where(and_(UserSession.user_id == user.id, UserSession.is_active == True))
+        .values(is_active=False)
     )
     await db.commit()
 
@@ -416,7 +411,7 @@ async def unlock_user(
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    user.status = "active"
+    user.is_locked = False
     user.locked_until = None
     user.failed_login_attempts = 0
     await db.commit()
@@ -446,13 +441,13 @@ async def suspend_user(
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    user.status = "suspended"
+    user.is_active = False
     await db.commit()
 
     await db.execute(
         update(UserSession)
-        .where(and_(UserSession.user_id == user.id, UserSession.revoked == False))
-        .values(revoked=True, revoked_at=datetime.now(timezone.utc))
+        .where(and_(UserSession.user_id == user.id, UserSession.is_active == True))
+        .values(is_active=False)
     )
     await db.commit()
 
@@ -480,7 +475,8 @@ async def activate_user(
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    user.status = "active"
+    user.is_active = True
+    user.is_locked = False
     user.locked_until = None
     user.failed_login_attempts = 0
     await db.commit()
@@ -1008,18 +1004,18 @@ async def offboard_user(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
     if body.revoke_access_immediately:
-        user.status = "offboarding"
+        user.is_active = False
         # Revoke all sessions
         await db.execute(
             update(UserSession)
-            .where(and_(UserSession.user_id == user.id, UserSession.revoked == False))
-            .values(revoked=True, revoked_at=datetime.now(timezone.utc))
+            .where(and_(UserSession.user_id == user.id, UserSession.is_active == True))
+            .values(is_active=False)
         )
         # Revoke entitlements
         await db.execute(
             update(UserEntitlement)
-            .where(and_(UserEntitlement.user_id == user.id, UserEntitlement.revoked_at.is_(None)))
-            .values(revoked_at=datetime.now(timezone.utc), revoke_reason="offboarding")
+            .where(and_(UserEntitlement.user_id == user.id, UserEntitlement.status == "active"))
+            .values(status="revoked")
         )
         await db.commit()
 

@@ -20,13 +20,13 @@ from backend.database import Base
 
 
 class ProvisioningTask(Base):
-    __tablename__ = "provisioning_task"
+    __tablename__ = "provisioning_tasks"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
 
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -40,13 +40,13 @@ class ProvisioningTask(Base):
     )
     target_user_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("user.id", ondelete="SET NULL"),
+        ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )
     target_application_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("application.id", ondelete="SET NULL"),
+        ForeignKey("applications.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )
@@ -80,8 +80,8 @@ class ProvisioningTask(Base):
     target_application = relationship("Application", foreign_keys=[target_application_id])
 
     __table_args__ = (
-        Index("ix_provisioning_task_tenant_status", "tenant_id", "status"),
-        Index("ix_provisioning_task_scheduled", "scheduled_at", "status"),
+        Index("ix_provisioning_tasks_tenant_status", "tenant_id", "status"),
+        Index("ix_provisioning_tasks_scheduled", "scheduled_at", "status"),
     )
 
     def __repr__(self) -> str:
@@ -92,19 +92,19 @@ class ProvisioningTask(Base):
 
 
 class ProvisioningLog(Base):
-    __tablename__ = "provisioning_log"
+    __tablename__ = "provisioning_logs"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
 
     provisioning_task_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("provisioning_task.id", ondelete="CASCADE"),
+        ForeignKey("provisioning_tasks.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -124,8 +124,8 @@ class ProvisioningLog(Base):
     provisioning_task = relationship("ProvisioningTask", back_populates="logs")
 
     __table_args__ = (
-        Index("ix_provisioning_log_task", "provisioning_task_id"),
-        Index("ix_provisioning_log_tenant_created", "tenant_id", "created_at"),
+        Index("ix_provisioning_logs_task", "provisioning_task_id"),
+        Index("ix_provisioning_logs_tenant_created", "tenant_id", "created_at"),
     )
 
     def __repr__(self) -> str:

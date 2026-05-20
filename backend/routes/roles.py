@@ -582,11 +582,10 @@ async def get_role_recommendations(
         .where(
             and_(
                 User.department == user.department,
-                User.job_title == user.job_title,
                 User.id != user.id,
                 User.tenant_id == current_user.tenant_id,
                 User.deleted_at.is_(None),
-                User.status == "active",
+                User.is_active == True,
             )
         )
         .limit(50)

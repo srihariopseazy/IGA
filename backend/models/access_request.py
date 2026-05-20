@@ -21,25 +21,25 @@ from backend.database import Base
 
 
 class AccessRequest(Base):
-    __tablename__ = "access_request"
+    __tablename__ = "access_requests"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
 
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     requester_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("user.id", ondelete="CASCADE"),
+        ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     target_user_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("user.id", ondelete="CASCADE"),
+        ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -69,7 +69,7 @@ class AccessRequest(Base):
     risk_score = Column(Float, nullable=True)
     workflow_instance_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("workflow_instance.id", ondelete="SET NULL"),
+        ForeignKey("workflow_instances.id", ondelete="SET NULL"),
         nullable=True,
     )
     sla_deadline = Column(DateTime(timezone=True), nullable=True)
@@ -83,9 +83,9 @@ class AccessRequest(Base):
     approvals = relationship("Approval", back_populates="access_request", lazy="select")
 
     __table_args__ = (
-        Index("ix_access_request_tenant_status", "tenant_id", "status"),
-        Index("ix_access_request_requester_status", "requester_id", "status"),
-        Index("ix_access_request_target_status", "target_user_id", "status"),
+        Index("ix_access_requests_tenant_status", "tenant_id", "status"),
+        Index("ix_access_requests_requester_status", "requester_id", "status"),
+        Index("ix_access_requests_target_status", "target_user_id", "status"),
     )
 
     def __repr__(self) -> str:
@@ -95,19 +95,19 @@ class AccessRequest(Base):
 
 
 class AccessRequestItem(Base):
-    __tablename__ = "access_request_item"
+    __tablename__ = "access_request_items"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
 
     access_request_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("access_request.id", ondelete="CASCADE"),
+        ForeignKey("access_requests.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -138,7 +138,7 @@ class AccessRequestItem(Base):
     access_request = relationship("AccessRequest", back_populates="items")
 
     __table_args__ = (
-        Index("ix_access_request_item_request", "access_request_id"),
+        Index("ix_access_request_items_request", "access_request_id"),
     )
 
     def __repr__(self) -> str:
@@ -148,19 +148,19 @@ class AccessRequestItem(Base):
 
 
 class Approval(Base):
-    __tablename__ = "approval"
+    __tablename__ = "approvals"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
 
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     access_request_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("access_request.id", ondelete="CASCADE"),
+        ForeignKey("access_requests.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -171,13 +171,13 @@ class Approval(Base):
     )
     approver_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("user.id", ondelete="SET NULL"),
+        ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )
     delegated_to_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("user.id", ondelete="SET NULL"),
+        ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
     )
     status = Column(
@@ -198,8 +198,8 @@ class Approval(Base):
     delegated_to = relationship("User", foreign_keys=[delegated_to_id])
 
     __table_args__ = (
-        Index("ix_approval_request_status", "access_request_id", "status"),
-        Index("ix_approval_approver_status", "approver_id", "status"),
+        Index("ix_approvals_request_status", "access_request_id", "status"),
+        Index("ix_approvals_approver_status", "approver_id", "status"),
     )
 
     def __repr__(self) -> str:

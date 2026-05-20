@@ -19,19 +19,19 @@ from backend.database import Base
 
 
 class AuditLog(Base):
-    __tablename__ = "audit_log"
+    __tablename__ = "audit_logs"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
 
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     user_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("user.id", ondelete="SET NULL"),
+        ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )
@@ -58,13 +58,10 @@ class AuditLog(Base):
     user = relationship("User", foreign_keys=[user_id])
 
     __table_args__ = (
-        Index("ix_audit_log_tenant_action", "tenant_id", "action"),
-        Index("ix_audit_log_tenant_created", "tenant_id", "created_at"),
-        Index("ix_audit_log_user_created", "user_id", "created_at"),
-        Index("ix_audit_log_resource", "resource_type", "resource_id"),
-        {
-            "postgresql_partition_by": "RANGE (created_at)",
-        },
+        Index("ix_audit_logs_tenant_action", "tenant_id", "action"),
+        Index("ix_audit_logs_tenant_created", "tenant_id", "created_at"),
+        Index("ix_audit_logs_user_created", "user_id", "created_at"),
+        Index("ix_audit_logs_resource", "resource_type", "resource_id"),
     )
 
     def __repr__(self) -> str:
@@ -81,7 +78,7 @@ class ComplianceReport(Base):
 
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -107,7 +104,7 @@ class ComplianceReport(Base):
     file_url = Column(Text, nullable=True)
     generated_by = Column(
         UUID(as_uuid=True),
-        ForeignKey("user.id", ondelete="SET NULL"),
+        ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
     )
 
@@ -117,6 +114,7 @@ class ComplianceReport(Base):
     __table_args__ = (
         Index("ix_compliance_report_tenant_type", "tenant_id", "report_type"),
         Index("ix_compliance_report_tenant_status", "tenant_id", "status"),
+        {"extend_existing": True},
     )
 
     def __repr__(self) -> str:

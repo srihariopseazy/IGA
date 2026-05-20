@@ -13,7 +13,6 @@ from sqlalchemy import (
     Text,
     ForeignKey,
     Index,
-    Enum as SAEnum,
 )
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
@@ -22,13 +21,13 @@ from backend.database import Base
 
 
 class User(Base):
-    __tablename__ = "user"
+    __tablename__ = "users"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
 
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -38,15 +37,12 @@ class User(Base):
     first_name = Column(String(100), nullable=True)
     last_name = Column(String(100), nullable=True)
     display_name = Column(String(255), nullable=True)
-    status = Column(
-        SAEnum("active", "inactive", "locked", "suspended", "pending", name="user_status_enum"),
-        nullable=False,
-        default="pending",
-        index=True,
-    )
+    full_name = Column(String(255), nullable=True)
+    is_active = Column(Boolean, nullable=False, default=True, index=True)
+    is_locked = Column(Boolean, nullable=False, default=False, index=True)
     employee_id = Column(String(100), nullable=True, index=True)
     department_id = Column(UUID(as_uuid=True), ForeignKey("department.id"), nullable=True)
-    manager_id = Column(UUID(as_uuid=True), ForeignKey("user.id"), nullable=True)
+    manager_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
 
     is_superadmin = Column(Boolean, nullable=False, default=False)
     is_tenant_admin = Column(Boolean, nullable=False, default=False)
@@ -74,30 +70,39 @@ class User(Base):
     manager = relationship("User", remote_side="User.id", foreign_keys=[manager_id], lazy="select")
 
     __table_args__ = (
-        Index("ix_user_tenant_email", "tenant_id", "email", unique=True),
-        Index("ix_user_tenant_username", "tenant_id", "username"),
-        Index("ix_user_tenant_status", "tenant_id", "status"),
+        Index("ix_users_tenant_email", "tenant_id", "email", unique=True),
+        Index("ix_users_tenant_username", "tenant_id", "username"),
+        Index("ix_users_tenant_active", "tenant_id", "is_active"),
     )
+
+    @property
+    def status(self) -> str:
+        """Computed status string for backward compatibility."""
+        if not self.is_active:
+            return "suspended"
+        if self.is_locked:
+            return "locked"
+        return "active"
 
     def __repr__(self) -> str:
         return f"<User id={self.id} email={self.email!r}>"
 
 
 class UserProfile(Base):
-    __tablename__ = "user_profile"
+    __tablename__ = "user_profiles"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
 
     user_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("user.id", ondelete="CASCADE"),
+        ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
         unique=True,
         index=True,
     )
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -106,11 +111,7 @@ class UserProfile(Base):
     location = Column(String(200), nullable=True)
     hire_date = Column(DateTime(timezone=True), nullable=True)
     exit_date = Column(DateTime(timezone=True), nullable=True)
-    employment_type = Column(
-        SAEnum("employee", "contractor", "intern", name="employment_type_enum"),
-        nullable=True,
-        default="employee",
-    )
+    employment_type = Column(String(50), nullable=True, default="employee")
     cost_center = Column(String(100), nullable=True)
     manager_name = Column(String(200), nullable=True)
     bio = Column(Text, nullable=True)
@@ -130,13 +131,13 @@ class LoginHistory(Base):
 
     user_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("user.id", ondelete="CASCADE"),
+        ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -162,19 +163,19 @@ class LoginHistory(Base):
 
 
 class Session(Base):
-    __tablename__ = "session"
+    __tablename__ = "user_sessions"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
 
     user_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("user.id", ondelete="CASCADE"),
+        ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -191,8 +192,8 @@ class Session(Base):
     user = relationship("User", back_populates="sessions")
 
     __table_args__ = (
-        Index("ix_session_user_active", "user_id", "is_active"),
-        Index("ix_session_tenant_active", "tenant_id", "is_active"),
+        Index("ix_user_sessions_user_active", "user_id", "is_active"),
+        Index("ix_user_sessions_tenant_active", "tenant_id", "is_active"),
     )
 
     def __repr__(self) -> str:
@@ -206,20 +207,17 @@ class MFADevice(Base):
 
     user_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("user.id", ondelete="CASCADE"),
+        ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
-    device_type = Column(
-        SAEnum("totp", "sms", "email", "backup_codes", name="mfa_device_type_enum"),
-        nullable=False,
-    )
+    device_type = Column(String(50), nullable=False)
     name = Column(String(100), nullable=True)
     secret_encrypted = Column(Text, nullable=True)
     phone_number = Column(String(30), nullable=True)
@@ -244,13 +242,13 @@ class PasswordResetToken(Base):
 
     user_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("user.id", ondelete="CASCADE"),
+        ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -269,13 +267,13 @@ class EmailVerificationToken(Base):
 
     user_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("user.id", ondelete="CASCADE"),
+        ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -294,13 +292,13 @@ class OTPCode(Base):
 
     user_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("user.id", ondelete="CASCADE"),
+        ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )

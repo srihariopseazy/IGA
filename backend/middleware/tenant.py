@@ -113,8 +113,8 @@ class TenantMiddleware(BaseHTTPMiddleware):
                             },
                         )
 
-                    status = getattr(tenant, "status", "active")
-                    if status == "suspended":
+                    is_active = getattr(tenant, "is_active", True)
+                    if not is_active:
                         return JSONResponse(
                             status_code=403,
                             content={
@@ -124,7 +124,7 @@ class TenantMiddleware(BaseHTTPMiddleware):
                             },
                         )
 
-                    if status == "deleted" or getattr(tenant, "deleted_at", None) is not None:
+                    if getattr(tenant, "deleted_at", None) is not None:
                         return JSONResponse(
                             status_code=403,
                             content={
@@ -138,8 +138,8 @@ class TenantMiddleware(BaseHTTPMiddleware):
                         "id": str(tenant.id),
                         "name": getattr(tenant, "name", ""),
                         "slug": getattr(tenant, "slug", ""),
-                        "status": status,
-                        "plan": getattr(tenant, "plan", "free"),
+                        "is_active": is_active,
+                        "plan_tier": getattr(tenant, "plan_tier", "free"),
                     }
 
                     # Cache tenant for 10 minutes

@@ -574,7 +574,7 @@ async def delegate_approval(
             and_(
                 User.id == body.delegate_to_user_id,
                 User.tenant_id == current_user.tenant_id,
-                User.status == "active",
+                User.is_active == True,
             )
         )
     )
