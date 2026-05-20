@@ -15,8 +15,11 @@ from backend.database import get_db
 from backend.middleware.auth import get_current_user, require_permission
 from backend.utils.audit import log_action
 from backend.models.user import User
-from backend.models.role import Role, Permission, RolePermission, UserRole
-from backend.models.sod import SoDPolicy, SoDConflict
+from backend.models.rbac import Role, Permission, RolePermission, UserRole
+from backend.models.sod import SODPolicy, SODViolation as SODViolation
+# Backward-compat aliases used in route bodies
+SoDPolicy = SODPolicy
+SoDConflict = SODViolation
 
 router = APIRouter(tags=["Roles & Permissions"])
 

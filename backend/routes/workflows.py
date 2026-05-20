@@ -15,7 +15,7 @@ from backend.database import get_db
 from backend.middleware.auth import get_current_user, require_permission
 from backend.utils.audit import log_action
 from backend.models.user import User
-from backend.models.workflow import Workflow, WorkflowInstance, WorkflowStep
+from backend.models.workflow import ApprovalWorkflow as Workflow, WorkflowInstance, WorkflowStep
 
 router = APIRouter(prefix="/workflows", tags=["Workflows"])
 

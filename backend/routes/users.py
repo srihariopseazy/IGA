@@ -19,11 +19,12 @@ import hashlib
 from backend.database import get_db
 from backend.middleware.auth import get_current_user, require_permission, get_password_hash
 from backend.utils.audit import log_action
-from backend.models.user import User, UserSession, LoginHistory, RiskScore
-from backend.models.role import Role, UserRole
-from backend.models.entitlement import Entitlement, UserEntitlement
+from backend.models.user import User, Session as UserSession, LoginHistory
+from backend.models.rbac import Role, UserRole
+from backend.models.application import Entitlement, UserEntitlement
 from backend.models.access_request import AccessRequest
 from backend.models.audit import AuditLog
+from backend.models.risk import RiskScore
 from backend.utils.email import send_email
 from backend.utils.storage import upload_file_to_storage
 

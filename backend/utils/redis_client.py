@@ -217,3 +217,8 @@ class RedisClient:
 
 
 redis_client = RedisClient()
+
+
+async def get_redis_client() -> RedisClient:
+    """Dependency / helper to retrieve the global RedisClient instance."""
+    return redis_client

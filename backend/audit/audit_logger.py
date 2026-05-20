@@ -100,3 +100,19 @@ class AuditLogger:
 
 def get_audit_logger(db: AsyncSession) -> AuditLogger:
     return AuditLogger(db)
+
+
+class _SimpleAuditLogger:
+    """Module-level no-op audit logger for routes that import `audit_logger` directly."""
+
+    async def log(self, *args, **kwargs) -> None:
+        pass
+
+    async def log_auth(self, *args, **kwargs) -> None:
+        pass
+
+    async def log_data_change(self, *args, **kwargs) -> None:
+        pass
+
+
+audit_logger = _SimpleAuditLogger()

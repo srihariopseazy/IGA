@@ -32,12 +32,18 @@ from backend.middleware.auth import (
     get_redis,
 )
 from backend.utils.audit import log_action
-from backend.models.user import User, UserSession, LoginHistory, MFABackupCode
+from backend.models.user import User, Session as UserSession, LoginHistory
 from backend.models.tenant import Tenant
 from backend.utils.email import send_email
 from backend.utils.notifications import notify_user
 
-router = APIRouter(prefix="/auth", tags=["Authentication"])
+# MFABackupCode is not a separate model; alias MFADevice for backward compat
+try:
+    from backend.models.user import MFADevice as MFABackupCode  # type: ignore[attr-defined]
+except ImportError:
+    MFABackupCode = None  # type: ignore[assignment,misc]
+
+router = APIRouter(tags=["Authentication"])
 
 # ---------------------------------------------------------------------------
 # Pydantic schemas

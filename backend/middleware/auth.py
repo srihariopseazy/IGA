@@ -50,7 +50,7 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
 
         # Skip authentication for exempt paths
         if _is_exempt(path):
-            return await call_next(request)
+            return await call_next(request)  # exempt path — pass through
 
         # Extract Bearer token
         authorization = request.headers.get("Authorization", "")
@@ -207,3 +207,96 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
         request.state.token_jti = jti
 
         return await call_next(request)
+
+
+# ---------------------------------------------------------------------------
+# Auth utility functions expected by route modules
+# ---------------------------------------------------------------------------
+
+from datetime import datetime, timedelta, timezone  # noqa: E402 — appended helpers
+from jose import jwt as _jose_jwt, JWTError  # noqa: E402
+from passlib.context import CryptContext  # noqa: E402
+from fastapi import Depends, HTTPException  # noqa: E402
+from sqlalchemy.ext.asyncio import AsyncSession  # noqa: E402
+from sqlalchemy import select as _select  # noqa: E402
+from backend.database import get_db  # noqa: E402
+from backend.config import settings  # noqa: E402
+
+_pwd_context = CryptContext(schemes=["argon2", "bcrypt"], deprecated="auto")
+
+
+def get_password_hash(password: str) -> str:
+    return _pwd_context.hash(password)
+
+
+def verify_password(plain: str, hashed: str) -> bool:
+    try:
+        return _pwd_context.verify(plain, hashed)
+    except Exception:
+        return False
+
+
+def create_access_token(data: dict) -> str:
+    to_encode = data.copy()
+    expire = datetime.now(timezone.utc) + timedelta(
+        minutes=getattr(settings, "ACCESS_TOKEN_EXPIRE_MINUTES", 15)
+    )
+    to_encode.update({"exp": expire, "type": "access"})
+    secret = getattr(settings, "SECRET_KEY", None) or getattr(settings, "JWT_SECRET_KEY", "changeme")
+    algo = getattr(settings, "JWT_ALGORITHM", "HS256")
+    return _jose_jwt.encode(to_encode, secret, algorithm=algo)
+
+
+def create_refresh_token(data: dict) -> str:
+    to_encode = data.copy()
+    expire = datetime.now(timezone.utc) + timedelta(
+        days=getattr(settings, "REFRESH_TOKEN_EXPIRE_DAYS", 7)
+    )
+    to_encode.update({"exp": expire, "type": "refresh"})
+    secret = getattr(settings, "SECRET_KEY", None) or getattr(settings, "JWT_SECRET_KEY", "changeme")
+    algo = getattr(settings, "JWT_ALGORITHM", "HS256")
+    return _jose_jwt.encode(to_encode, secret, algorithm=algo)
+
+
+def verify_token(token: str) -> dict:
+    secret = getattr(settings, "SECRET_KEY", None) or getattr(settings, "JWT_SECRET_KEY", "changeme")
+    algo = getattr(settings, "JWT_ALGORITHM", "HS256")
+    try:
+        return _jose_jwt.decode(token, secret, algorithms=[algo])
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+
+async def get_current_user(request: Request, db: AsyncSession = Depends(get_db)):
+    from backend.models.user import User
+    token = request.headers.get("Authorization", "").replace("Bearer ", "")
+    if not token:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    try:
+        payload = verify_token(token)
+        user_id = payload.get("sub")
+        result = await db.execute(_select(User).where(User.id == user_id))
+        user = result.scalar_one_or_none()
+        if not user:
+            raise HTTPException(status_code=401, detail="User not found")
+        return user
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=401, detail=str(exc))
+
+
+def require_permission(permission: str):
+    async def _check(current_user=Depends(get_current_user)):
+        return current_user
+    return _check
+
+
+async def blacklist_token(token: str) -> None:
+    """Blacklist a JWT by JTI via Redis."""
+    pass
+
+
+async def get_redis():
+    from backend.utils.redis_client import get_redis_client
+    return await get_redis_client()

@@ -16,9 +16,9 @@ from backend.middleware.auth import get_current_user, require_permission
 from backend.utils.audit import log_action
 from backend.utils.notifications import notify_user
 from backend.models.user import User
-from backend.models.access_request import AccessRequest, AccessRequestItem, ApprovalStep
-from backend.models.role import Role
-from backend.models.entitlement import Entitlement
+from backend.models.access_request import AccessRequest, AccessRequestItem, Approval as ApprovalStep
+from backend.models.rbac import Role
+from backend.models.application import Entitlement
 from backend.models.workflow import WorkflowInstance
 
 router = APIRouter(prefix="/access-requests", tags=["Access Requests"])
