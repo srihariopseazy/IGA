@@ -55,12 +55,12 @@ const authSlice = createSlice({
   reducers: {
     setCredentials: (state, action: PayloadAction<LoginResponse>) => {
       state.user = action.payload.user
-      state.accessToken = action.payload.accessToken
+      state.accessToken = (action.payload as any).access_token || (action.payload as any).accessToken
       state.refreshToken = action.payload.refreshToken
       state.isAuthenticated = true
       state.tenantId = action.payload.user.tenantId
       state.error = null
-      localStorage.setItem('accessToken', action.payload.accessToken)
+      localStorage.setItem("accessToken", (action.payload as any).access_token || (action.payload as any).accessToken)
       localStorage.setItem('refreshToken', action.payload.refreshToken)
       localStorage.setItem('tenantId', action.payload.user.tenantId)
     },
@@ -127,8 +127,8 @@ const authSlice = createSlice({
         localStorage.removeItem('tenantId')
       })
       .addCase(refreshTokenThunk.fulfilled, (state, action) => {
-        state.accessToken = action.payload.accessToken
-        localStorage.setItem('accessToken', action.payload.accessToken)
+        state.accessToken = (action.payload as any).access_token || (action.payload as any).accessToken
+        localStorage.setItem("accessToken", (action.payload as any).access_token || (action.payload as any).accessToken)
       })
       .addCase(refreshTokenThunk.rejected, (state) => {
         state.user = null

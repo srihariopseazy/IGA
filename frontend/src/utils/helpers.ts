@@ -99,6 +99,7 @@ export function truncate(str: string, maxLength: number): string {
 }
 
 export function generateInitials(name: string): string {
+  if (!name) return '??'
   const parts = name.trim().split(' ').filter(Boolean)
   if (parts.length === 0) return '??'
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
@@ -153,6 +154,7 @@ export function getRiskScoreLevel(score: number): RiskLevel {
 }
 
 export function getAvatarColor(name: string): string {
+  if (!name) return 'bg-blue-500'
   const colors = [
     'bg-blue-500',
     'bg-purple-500',

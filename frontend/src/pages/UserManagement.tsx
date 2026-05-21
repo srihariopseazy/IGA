@@ -95,8 +95,8 @@ export default function UserManagement() {
       accessorFn: (row) => row.displayName,
       cell: ({ row }) => {
         const u = row.original
-        const initials = generateInitials(u.displayName)
-        const color = getAvatarColor(u.displayName)
+        const initials = generateInitials(u.displayName || `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email)
+        const color = getAvatarColor(u.displayName || `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email)
         return (
           <div className="flex items-center gap-3">
             <div className={`w-8 h-8 rounded-full ${color} flex items-center justify-center text-white text-xs font-semibold flex-shrink-0`}>
@@ -333,8 +333,8 @@ export default function UserManagement() {
             <div className="p-6 space-y-6">
               {/* Profile */}
               <div className="flex items-center gap-4">
-                <div className={`w-14 h-14 rounded-full ${getAvatarColor(selectedUser.displayName)} flex items-center justify-center text-white text-xl font-bold`}>
-                  {generateInitials(selectedUser.displayName)}
+                <div className={`w-14 h-14 rounded-full ${getAvatarColor(selectedUser.displayName || `${selectedUser.firstName || ''} ${selectedUser.lastName || ''}`.trim() || selectedUser.email)} flex items-center justify-center text-white text-xl font-bold`}>
+                  {generateInitials(selectedUser.displayName || `${selectedUser.firstName || ''} ${selectedUser.lastName || ''}`.trim() || selectedUser.email)}
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold text-slate-900 dark:text-white">{selectedUser.displayName}</h3>
