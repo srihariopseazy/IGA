@@ -244,8 +244,9 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
         expire = datetime.now(timezone.utc) + timedelta(
             minutes=getattr(settings, "ACCESS_TOKEN_EXPIRE_MINUTES", 60)
         )
-    to_encode.update({"exp": expire, "type": "access"})
-    secret = getattr(settings, "SECRET_KEY", None) or getattr(settings, "JWT_SECRET_KEY", "changeme")
+    import uuid as _uuid
+    to_encode.update({"exp": expire, "type": "access", "jti": str(_uuid.uuid4())})
+    secret = getattr(settings, "JWT_SECRET_KEY", None) or getattr(settings, "SECRET_KEY", "changeme")
     algo = getattr(settings, "JWT_ALGORITHM", "HS256")
     return _jwt.encode(to_encode, secret, algorithm=algo)
 
@@ -259,13 +260,13 @@ def create_refresh_token(data: dict, expires_delta: timedelta | None = None) -> 
             days=getattr(settings, "REFRESH_TOKEN_EXPIRE_DAYS", 7)
         )
     to_encode.update({"exp": expire, "type": "refresh"})
-    secret = getattr(settings, "SECRET_KEY", None) or getattr(settings, "JWT_SECRET_KEY", "changeme")
+    secret = getattr(settings, "JWT_SECRET_KEY", None) or getattr(settings, "SECRET_KEY", "changeme")
     algo = getattr(settings, "JWT_ALGORITHM", "HS256")
     return _jwt.encode(to_encode, secret, algorithm=algo)
 
 
 def verify_token(token: str, token_type: str | None = None) -> dict:
-    secret = getattr(settings, "SECRET_KEY", None) or getattr(settings, "JWT_SECRET_KEY", "changeme")
+    secret = getattr(settings, "JWT_SECRET_KEY", None) or getattr(settings, "SECRET_KEY", "changeme")
     algo = getattr(settings, "JWT_ALGORITHM", "HS256")
     try:
         payload = _jwt.decode(token, secret, algorithms=[algo])

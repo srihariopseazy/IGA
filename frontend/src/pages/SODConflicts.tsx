@@ -102,7 +102,7 @@ const SODConflicts: React.FC = () => {
     <div className="space-y-6">
       <PageHeader
         title="SoD Conflicts"
-        subtitle="Segregation of Duties violations and policy enforcement"
+        description="Segregation of Duties violations and policy enforcement"
         actions={
           <button
             onClick={() => runScanMutation.mutate()}
@@ -115,10 +115,10 @@ const SODConflicts: React.FC = () => {
       />
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatsCard title="Total Violations" value={violations.length} />
-        <StatsCard title="Critical" value={violations.filter((v) => v.severity === "critical").length} color="red" />
-        <StatsCard title="Open" value={violations.filter((v) => !v.mitigated).length} color="yellow" />
-        <StatsCard title="Mitigated" value={violations.filter((v) => v.mitigated).length} color="green" />
+        <StatsCard label="Total Violations" value={violations.length} />
+        <StatsCard label="Critical" value={violations.filter((v) => v.severity === "critical").length} />
+        <StatsCard label="Open" value={violations.filter((v) => !v.mitigated).length} />
+        <StatsCard label="Mitigated" value={violations.filter((v) => v.mitigated).length} />
       </div>
 
       <div className="flex gap-2">
@@ -138,7 +138,7 @@ const SODConflicts: React.FC = () => {
       </div>
 
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow">
-        <DataTable columns={columns} data={violations} isLoading={isLoading} />
+        <DataTable columns={columns} data={violations} loading={isLoading} />
       </div>
     </div>
   );

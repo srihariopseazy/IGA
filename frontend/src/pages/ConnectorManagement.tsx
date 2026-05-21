@@ -68,7 +68,7 @@ const ConnectorManagement: React.FC = () => {
     <div className="space-y-6">
       <PageHeader
         title="Connector Management"
-        subtitle="Manage integrations with identity sources and target systems"
+        description="Manage integrations with identity sources and target systems"
         actions={
           <button
             onClick={() => setShowCreate(true)}
@@ -80,9 +80,9 @@ const ConnectorManagement: React.FC = () => {
       />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <StatsCard title="Total Connectors" value={connectors.length} />
-        <StatsCard title="Active" value={connectors.filter((c) => c.status === "active").length} color="green" />
-        <StatsCard title="Errors" value={connectors.filter((c) => c.status === "error").length} color="red" />
+        <StatsCard label="Total Connectors" value={connectors.length} />
+        <StatsCard label="Active" value={connectors.filter((c) => c.status === "active").length} />
+        <StatsCard label="Errors" value={connectors.filter((c) => c.status === "error").length} />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

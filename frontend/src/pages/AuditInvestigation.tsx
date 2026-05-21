@@ -77,7 +77,7 @@ const AuditInvestigation: React.FC = () => {
     <div className="space-y-6">
       <PageHeader
         title="Audit Investigation"
-        subtitle="Search and analyze immutable audit trail"
+        description="Search and analyze immutable audit trail"
         actions={
           <button
             onClick={exportLogs}
@@ -150,7 +150,7 @@ const AuditInvestigation: React.FC = () => {
             </button>
           </div>
         </div>
-        <DataTable columns={columns} data={data?.data ?? []} isLoading={isLoading} />
+        <DataTable columns={columns} data={data?.data ?? []} loading={isLoading} />
       </div>
     </div>
   );

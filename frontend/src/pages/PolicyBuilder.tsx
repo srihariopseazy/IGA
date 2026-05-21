@@ -65,7 +65,7 @@ const PolicyBuilder: React.FC = () => {
     <div className="space-y-6">
       <PageHeader
         title="Policy Builder"
-        subtitle="Define and manage access control and compliance policies"
+        description="Define and manage access control and compliance policies"
         actions={
           <button
             onClick={() => setShowCreate(true)}

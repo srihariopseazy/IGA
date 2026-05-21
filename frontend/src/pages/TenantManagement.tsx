@@ -95,7 +95,7 @@ const TenantManagement: React.FC = () => {
     <div className="space-y-6">
       <PageHeader
         title="Tenant Management"
-        subtitle="Manage multi-tenant organizations"
+        description="Manage multi-tenant organizations"
         actions={
           <button
             onClick={() => setShowCreate(true)}
@@ -107,14 +107,14 @@ const TenantManagement: React.FC = () => {
       />
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatsCard title="Total Tenants" value={tenants.length} />
-        <StatsCard title="Active" value={tenants.filter((t) => t.status === "active").length} color="green" />
-        <StatsCard title="Trial" value={tenants.filter((t) => t.status === "trial").length} color="yellow" />
-        <StatsCard title="Suspended" value={tenants.filter((t) => t.status === "suspended").length} color="red" />
+        <StatsCard label="Total Tenants" value={tenants.length} />
+        <StatsCard label="Active" value={tenants.filter((t) => t.status === "active").length} />
+        <StatsCard label="Trial" value={tenants.filter((t) => t.status === "trial").length} />
+        <StatsCard label="Suspended" value={tenants.filter((t) => t.status === "suspended").length} />
       </div>
 
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow">
-        <DataTable columns={columns} data={tenants} isLoading={isLoading} />
+        <DataTable columns={columns} data={tenants} loading={isLoading} />
       </div>
 
       {showCreate && (

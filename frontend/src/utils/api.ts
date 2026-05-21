@@ -1,7 +1,28 @@
 import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosResponse } from 'axios'
-import { store } from '@/store'
-import { logout, setCredentials } from '@/store/slices/authSlice'
 import { LoginResponse } from '@/types'
+
+// Read auth state directly from localStorage to avoid circular dependency
+const getStore = () => ({
+  getState: () => ({
+    auth: {
+      accessToken: localStorage.getItem('accessToken'),
+      refreshToken: localStorage.getItem('refreshToken'),
+      tenantId: localStorage.getItem('tenantId'),
+    }
+  }),
+  dispatch: (action: any) => {
+    if (action?.type === 'auth/logout' || action?.payload?.type === 'auth/logout') {
+      localStorage.removeItem('accessToken')
+      localStorage.removeItem('refreshToken')
+      localStorage.removeItem('tenantId')
+      window.location.href = '/login'
+    }
+  }
+})
+const getAuthActions = () => ({
+  logout: () => ({ type: 'auth/logout' }),
+  setCredentials: (data: any) => ({ type: 'auth/setCredentials', payload: data })
+})
 
 let isRefreshing = false
 let failedQueue: Array<{
@@ -30,7 +51,7 @@ const api: AxiosInstance = axios.create({
 
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    const state = store.getState()
+    const state = getStore().getState()
     const token = state.auth.accessToken
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`
@@ -64,11 +85,11 @@ api.interceptors.response.use(
       originalRequest._retry = true
       isRefreshing = true
 
-      const state = store.getState()
+      const state = getStore().getState()
       const refreshToken = state.auth.refreshToken
 
       if (!refreshToken) {
-        store.dispatch(logout())
+        getStore().dispatch(getAuthActions().logout())
         window.location.href = '/login'
         return Promise.reject(error)
       }
@@ -78,13 +99,13 @@ api.interceptors.response.use(
           refreshToken,
         })
         const { accessToken } = response.data
-        store.dispatch(setCredentials(response.data))
+        getStore().dispatch(getAuthActions().setCredentials(response.data))
         processQueue(null, accessToken)
         originalRequest.headers.Authorization = `Bearer ${accessToken}`
         return api(originalRequest)
       } catch (refreshError) {
         processQueue(refreshError, null)
-        store.dispatch(logout())
+        getStore().dispatch(getAuthActions().logout())
         window.location.href = '/login'
         return Promise.reject(refreshError)
       } finally {

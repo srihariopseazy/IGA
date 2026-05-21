@@ -34,7 +34,7 @@ const Settings: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Settings" subtitle="Manage tenant and account settings" />
+      <PageHeader title="Settings" description="Manage tenant and account settings" />
 
       <div className="flex gap-1 border-b dark:border-gray-700">
         {tabs.map((t) => (

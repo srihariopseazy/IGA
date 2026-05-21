@@ -60,7 +60,7 @@ const Roles: React.FC = () => {
     <div className="space-y-6">
       <PageHeader
         title="Role Management"
-        subtitle="Define and manage RBAC roles and permissions"
+        description="Define and manage RBAC roles and permissions"
         actions={
           <button
             onClick={() => setShowCreate(true)}
@@ -72,13 +72,13 @@ const Roles: React.FC = () => {
       />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <StatsCard title="Total Roles" value={roles.length} />
-        <StatsCard title="System Roles" value={roles.filter((r) => r.role_type === "system").length} color="blue" />
-        <StatsCard title="Custom Roles" value={roles.filter((r) => r.role_type === "custom").length} color="green" />
+        <StatsCard label="Total Roles" value={roles.length} />
+        <StatsCard label="System Roles" value={roles.filter((r) => r.role_type === "system").length} />
+        <StatsCard label="Custom Roles" value={roles.filter((r) => r.role_type === "custom").length} />
       </div>
 
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow">
-        <DataTable columns={columns} data={roles} isLoading={isLoading} />
+        <DataTable columns={columns} data={roles} loading={isLoading} />
       </div>
 
       {showCreate && (

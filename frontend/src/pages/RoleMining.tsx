@@ -47,7 +47,7 @@ const RoleMining: React.FC = () => {
     <div className="space-y-6">
       <PageHeader
         title="Role Mining"
-        subtitle="AI-powered role discovery and optimization"
+        description="AI-powered role discovery and optimization"
         actions={
           <button
             onClick={() => runMiningMutation.mutate()}

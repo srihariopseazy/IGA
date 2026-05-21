@@ -85,7 +85,7 @@ const HRMSSync: React.FC = () => {
     <div className="space-y-6">
       <PageHeader
         title="HRMS Sync"
-        subtitle="Synchronize identity data from Human Resource Management Systems"
+        description="Synchronize identity data from Human Resource Management Systems"
         actions={
           <button
             onClick={() => triggerMutation.mutate()}
@@ -99,16 +99,16 @@ const HRMSSync: React.FC = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <StatsCard
-          title="Last Sync"
+          label="Last Sync"
           value={lastJob ? new Date(lastJob.started_at).toLocaleDateString() : "Never"}
         />
         <StatsCard
-          title="Records Processed"
+          label="Records Processed"
           value={lastJob?.records_processed ?? 0}
-          color="blue"
+         
         />
-        <StatsCard title="Created" value={lastJob?.records_created ?? 0} color="green" />
-        <StatsCard title="Failed" value={lastJob?.records_failed ?? 0} color="red" />
+        <StatsCard label="Created" value={lastJob?.records_created ?? 0} />
+        <StatsCard label="Failed" value={lastJob?.records_failed ?? 0} />
       </div>
 
       {config?.data && (
@@ -143,7 +143,7 @@ const HRMSSync: React.FC = () => {
         <div className="p-4 border-b dark:border-gray-700">
           <h2 className="font-semibold">Sync History</h2>
         </div>
-        <DataTable columns={columns} data={jobs_} isLoading={isLoading} />
+        <DataTable columns={columns} data={jobs_} loading={isLoading} />
       </div>
     </div>
   );

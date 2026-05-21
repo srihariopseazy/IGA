@@ -109,13 +109,13 @@ const ApprovalCenter: React.FC = () => {
     <div className="space-y-6">
       <PageHeader
         title="Approval Center"
-        subtitle="Review and action pending access requests"
+        description="Review and action pending access requests"
       />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <StatsCard title="Pending Approvals" value={pending.length} color="yellow" />
-        <StatsCard title="High Risk" value={pending.filter((p) => p.risk_level === "high").length} color="red" />
-        <StatsCard title="Overdue (>48h)" value={pending.filter((p) => new Date(p.created_at) < new Date(Date.now() - 48 * 3600000)).length} color="orange" />
+        <StatsCard label="Pending Approvals" value={pending.length} />
+        <StatsCard label="High Risk" value={pending.filter((p) => p.risk_level === "high").length} />
+        <StatsCard label="Overdue (>48h)" value={pending.filter((p) => new Date(p.created_at) < new Date(Date.now() - 48 * 3600000)).length} />
       </div>
 
       {bulkSelected.length > 0 && (
@@ -137,11 +137,12 @@ const ApprovalCenter: React.FC = () => {
       )}
 
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow">
-        <DataTable columns={columns} data={pending} isLoading={isLoading} />
+        <DataTable columns={columns} data={pending} loading={isLoading} />
       </div>
 
       {selectedId && action && (
         <ConfirmDialog
+          open={true}
           title={action === "approve" ? "Approve Request" : "Reject Request"}
           message={
             <div className="space-y-3">

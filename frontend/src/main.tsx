@@ -6,6 +6,10 @@ import { BrowserRouter } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import App from './App'
 import { store } from './store'
+import { logout, setCredentials } from './store/slices/authSlice'
+// Expose store to break circular dependency in api.ts
+;(window as any).__store = store
+;(window as any).__authActions = { logout, setCredentials }
 import { queryClient } from './utils/queryClient'
 import './index.css'
 

@@ -92,7 +92,7 @@ const Certifications: React.FC = () => {
     <div className="space-y-6">
       <PageHeader
         title="Access Certifications"
-        subtitle="Review and certify user access rights"
+        description="Review and certify user access rights"
         actions={
           <button
             onClick={() => setShowCreate(true)}
@@ -104,14 +104,14 @@ const Certifications: React.FC = () => {
       />
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatsCard title="Active Campaigns" value={campaigns.filter((c) => c.status === "active").length} />
-        <StatsCard title="Pending Reviews" value={campaigns.reduce((s, c) => s + c.pending_items, 0)} color="yellow" />
-        <StatsCard title="Certified" value={campaigns.reduce((s, c) => s + c.certified_items, 0)} color="green" />
-        <StatsCard title="Revoked" value={campaigns.reduce((s, c) => s + c.revoked_items, 0)} color="red" />
+        <StatsCard label="Active Campaigns" value={campaigns.filter((c) => c.status === "active").length} />
+        <StatsCard label="Pending Reviews" value={campaigns.reduce((s, c) => s + c.pending_items, 0)} />
+        <StatsCard label="Certified" value={campaigns.reduce((s, c) => s + c.certified_items, 0)} />
+        <StatsCard label="Revoked" value={campaigns.reduce((s, c) => s + c.revoked_items, 0)} />
       </div>
 
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow">
-        <DataTable columns={columns} data={campaigns} isLoading={isLoading} />
+        <DataTable columns={columns} data={campaigns} loading={isLoading} />
       </div>
 
       {showCreate && (

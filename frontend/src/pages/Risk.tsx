@@ -102,7 +102,7 @@ const Risk: React.FC = () => {
     <div className="space-y-6">
       <PageHeader
         title="Risk Dashboard"
-        subtitle="Identity risk scores and anomaly detection"
+        description="Identity risk scores and anomaly detection"
         actions={
           <button
             onClick={() => recalcMutation.mutate()}
@@ -117,10 +117,8 @@ const Risk: React.FC = () => {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {(["critical", "high", "medium", "low"] as const).map((level) => (
           <StatsCard
-            key={level}
-            title={level.charAt(0).toUpperCase() + level.slice(1) + " Risk"}
+            label={level.charAt(0).toUpperCase() + level.slice(1) + " Risk"}
             value={scores.filter((s) => s.risk_level === level).length}
-            color={level === "critical" || level === "high" ? "red" : level === "medium" ? "yellow" : "green"}
           />
         ))}
       </div>
@@ -142,7 +140,7 @@ const Risk: React.FC = () => {
       </div>
 
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow">
-        <DataTable columns={columns} data={scores} isLoading={isLoading} />
+        <DataTable columns={columns} data={scores} loading={isLoading} />
       </div>
     </div>
   );

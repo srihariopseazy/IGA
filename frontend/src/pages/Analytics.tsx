@@ -63,13 +63,13 @@ const Analytics: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Analytics" subtitle="Identity governance insights and trends" />
+      <PageHeader title="Analytics" description="Identity governance insights and trends" />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatsCard title="Total Users" value={analytics?.user_growth?.slice(-1)[0]?.count ?? 0} color="blue" />
-        <StatsCard title="Monthly Requests" value={analytics?.request_trend?.slice(-1)[0]?.submitted ?? 0} color="green" />
-        <StatsCard title="High Risk Users" value={analytics?.risk_distribution?.find((r) => r.level === "high")?.count ?? 0} color="red" />
-        <StatsCard title="SoD Violations (Month)" value={analytics?.sod_trend?.slice(-1)[0]?.violations ?? 0} color="yellow" />
+        <StatsCard label="Total Users" value={analytics?.user_growth?.slice(-1)[0]?.count ?? 0} />
+        <StatsCard label="Monthly Requests" value={analytics?.request_trend?.slice(-1)[0]?.submitted ?? 0} />
+        <StatsCard label="High Risk Users" value={analytics?.risk_distribution?.find((r) => r.level === "high")?.count ?? 0} />
+        <StatsCard label="SoD Violations (Month)" value={analytics?.sod_trend?.slice(-1)[0]?.violations ?? 0} />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

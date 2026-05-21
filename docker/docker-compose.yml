@@ -64,11 +64,11 @@ services:
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-iga_user} -d ${POSTGRES_DB:-iga_db}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-iga_user} -d ${POSTGRES_DB:-iga_db} || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     command: >
       postgres
         -c max_connections=200
@@ -128,7 +128,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
+      start_period: 60s
     deploy:
       resources:
         limits:
@@ -161,7 +161,7 @@ services:
       interval: 15s
       timeout: 10s
       retries: 5
-      start_period: 60s
+      start_period: 120s
     deploy:
       resources:
         limits:
@@ -182,7 +182,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 60s
+      start_period: 120s
     volumes:
       - /tmp/iga-backend:/tmp
     deploy:
@@ -206,11 +206,11 @@ services:
         --queues=default,provisioning,notifications,risk_scoring,certification
         --hostname=worker@%h
     healthcheck:
-      test: ["CMD-SHELL", "celery -A backend.celery_app inspect ping -d celery@$$HOSTNAME || exit 1"]
+      test: ["CMD-SHELL", "celery -A backend.celery_app status 2>/dev/null | grep -q 'online' || exit 1"]
       interval: 30s
-      timeout: 15s
+      timeout: 30s
       retries: 3
-      start_period: 60s
+      start_period: 120s
     deploy:
       resources:
         limits:
@@ -227,17 +227,16 @@ services:
     command: >
       celery -A backend.celery_app beat
         --loglevel=info
-        --scheduler django_celery_beat.schedulers:DatabaseScheduler
         --pidfile=/tmp/celerybeat.pid
     volumes:
       - celery_beat_data:/app/celery-beat
       - /tmp/iga-celery-beat:/tmp
     healthcheck:
-      test: ["CMD-SHELL", "test -f /tmp/celerybeat.pid && kill -0 $$(cat /tmp/celerybeat.pid) 2>/dev/null || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
+      test: ["CMD-SHELL", "test -f /tmp/celerybeat.pid && kill -0 $(cat /tmp/celerybeat.pid) 2>/dev/null || exit 1"]
+      interval: 60s
+      timeout: 30s
+      retries: 5
+      start_period: 120s
     deploy:
       resources:
         limits:
@@ -256,8 +255,6 @@ services:
         --port=5555
         --basic_auth=${FLOWER_USER:-admin}:${FLOWER_PASSWORD:-flower_password}
         --url_prefix=flower
-        --persistent=True
-        --db=/app/flower/flower.db
         --max_tasks=10000
     ports:
       - "${FLOWER_PORT:-5555}:5555"
@@ -287,11 +284,11 @@ services:
     networks:
       - iga-network
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost/health"]
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/"]
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 10s
+      start_period: 60s
     deploy:
       resources:
         limits:
@@ -476,7 +473,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 60s
+      start_period: 120s
     deploy:
       resources:
         limits:

@@ -116,7 +116,7 @@ const PrivilegedAccess: React.FC = () => {
     <div className="space-y-6">
       <PageHeader
         title="Privileged Access Management"
-        subtitle="Monitor and control privileged account usage"
+        description="Monitor and control privileged account usage"
         actions={
           <button
             onClick={() => setShowBG(true)}
@@ -128,10 +128,10 @@ const PrivilegedAccess: React.FC = () => {
       />
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatsCard title="Active Sessions" value={sessions?.data.filter((s) => s.status === "active").length ?? 0} color="blue" />
-        <StatsCard title="Total Sessions Today" value={sessions?.data.length ?? 0} />
-        <StatsCard title="Avg Duration (min)" value={Math.round((sessions?.data.reduce((s, r) => s + (r.duration_minutes ?? 0), 0) ?? 0) / Math.max(sessions?.data.length ?? 1, 1))} />
-        <StatsCard title="Break Glass (pending)" value={bgRequests?.data.filter((b) => b.status === "pending").length ?? 0} color="red" />
+        <StatsCard label="Active Sessions" value={sessions?.data.filter((s) => s.status === "active").length ?? 0} />
+        <StatsCard label="Total Sessions Today" value={sessions?.data.length ?? 0} />
+        <StatsCard label="Avg Duration (min)" value={Math.round((sessions?.data.reduce((s, r) => s + (r.duration_minutes ?? 0), 0) ?? 0) / Math.max(sessions?.data.length ?? 1, 1))} />
+        <StatsCard label="Break Glass (pending)" value={bgRequests?.data.filter((b) => b.status === "pending").length ?? 0} />
       </div>
 
       <div className="flex gap-2">
@@ -150,9 +150,9 @@ const PrivilegedAccess: React.FC = () => {
 
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow">
         {activeTab === "sessions" ? (
-          <DataTable columns={sessionColumns} data={sessions?.data ?? []} isLoading={sessionsLoading} />
+          <DataTable columns={sessionColumns} data={sessions?.data ?? []} loading={sessionsLoading} />
         ) : (
-          <DataTable columns={bgColumns} data={bgRequests?.data ?? []} isLoading={bgLoading} />
+          <DataTable columns={bgColumns} data={bgRequests?.data ?? []} loading={bgLoading} />
         )}
       </div>
 

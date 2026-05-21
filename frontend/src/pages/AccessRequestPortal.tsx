@@ -80,7 +80,7 @@ const AccessRequestPortal: React.FC = () => {
     <div className="space-y-6">
       <PageHeader
         title="Access Request Portal"
-        subtitle="Request access to applications and entitlements"
+        description="Request access to applications and entitlements"
         actions={
           <button
             onClick={() => setShowForm(true)}
@@ -92,9 +92,9 @@ const AccessRequestPortal: React.FC = () => {
       />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <StatsCard title="Pending" value={requests?.data.filter((r) => r.status === "pending").length ?? 0} />
-        <StatsCard title="Approved" value={requests?.data.filter((r) => r.status === "approved").length ?? 0} color="green" />
-        <StatsCard title="Rejected" value={requests?.data.filter((r) => r.status === "rejected").length ?? 0} color="red" />
+        <StatsCard label="Pending" value={requests?.data.filter((r) => r.status === "pending").length ?? 0} />
+        <StatsCard label="Approved" value={requests?.data.filter((r) => r.status === "approved").length ?? 0} />
+        <StatsCard label="Rejected" value={requests?.data.filter((r) => r.status === "rejected").length ?? 0} />
       </div>
 
       {showForm && (
@@ -154,7 +154,7 @@ const AccessRequestPortal: React.FC = () => {
         <div className="p-4 border-b dark:border-gray-700">
           <h2 className="font-semibold">My Requests</h2>
         </div>
-        <DataTable columns={columns} data={requests?.data ?? []} isLoading={isLoading} />
+        <DataTable columns={columns} data={requests?.data ?? []} loading={isLoading} />
       </div>
     </div>
   );

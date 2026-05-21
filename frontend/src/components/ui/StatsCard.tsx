@@ -5,7 +5,7 @@ import { formatNumber } from '@/utils/helpers'
 interface StatsCardProps {
   label: string
   value: number | string
-  icon?: React.ComponentType<{ size?: number; className?: string }>
+  icon?: React.ComponentType<{ size?: number; className?: string }> | any | React.ForwardRefExoticComponent<any>
   iconColor?: string
   iconBg?: string
   trend?: number // percentage change, positive = up, negative = down
@@ -15,9 +15,16 @@ interface StatsCardProps {
   loading?: boolean
   onClick?: () => void
   className?: string
+  title?: string  // alias for label
+  color?: string  // ignored, for compat
+  key?: string    // ignored, for compat
 }
 
-export function StatsCard({
+export function StatsCard({ title, ...props }: StatsCardProps & { title?: string }) {
+  const label = props.label || title || ''
+  return <StatsCardInner {...props} label={label} />
+}
+function StatsCardInner({
   label,
   value,
   icon: Icon,

@@ -39,8 +39,8 @@ export const logoutThunk = createAsyncThunk('auth/logout', async (_, { getState 
 export const refreshTokenThunk = createAsyncThunk('auth/refreshToken', async (_, { getState, rejectWithValue }) => {
   try {
     const state = getState() as { auth: AuthState }
-    const response = await api.post<{ accessToken: string; expiresIn: number }>('/api/v1/auth/refresh', {
-      refreshToken: state.auth.refreshToken,
+    const response = await api.post<{ access_token: string; expiresIn: number }>('/api/v1/auth/refresh', {
+      refresh_token: state.auth.refreshToken,
     })
     return response.data
   } catch (err: unknown) {
@@ -97,16 +97,20 @@ const authSlice = createSlice({
         state.error = null
       })
       .addCase(loginThunk.fulfilled, (state, action) => {
+        const p = action.payload as any
+        const accessToken = p.access_token || p.accessToken
+        const refreshToken = p.refresh_token || p.refreshToken
+        const tenantId = p.user?.tenant_id || p.user?.tenantId
         state.isLoading = false
-        state.user = action.payload.user
-        state.accessToken = action.payload.accessToken
-        state.refreshToken = action.payload.refreshToken
+        state.user = p.user
+        state.accessToken = accessToken
+        state.refreshToken = refreshToken
         state.isAuthenticated = true
-        state.tenantId = action.payload.user.tenantId
+        state.tenantId = tenantId
         state.error = null
-        localStorage.setItem('accessToken', action.payload.accessToken)
-        localStorage.setItem('refreshToken', action.payload.refreshToken)
-        localStorage.setItem('tenantId', action.payload.user.tenantId)
+        localStorage.setItem('accessToken', accessToken)
+        localStorage.setItem('refreshToken', refreshToken)
+        localStorage.setItem('tenantId', tenantId)
       })
       .addCase(loginThunk.rejected, (state, action) => {
         state.isLoading = false

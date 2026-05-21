@@ -80,7 +80,7 @@ const WorkflowBuilder: React.FC = () => {
     <div className="space-y-6">
       <PageHeader
         title="Workflow Builder"
-        subtitle="Design and manage approval workflows"
+        description="Design and manage approval workflows"
         actions={
           <button
             onClick={() => setShowCreate(true)}

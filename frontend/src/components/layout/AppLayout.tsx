@@ -19,7 +19,7 @@ import { useWebSocket } from '@/hooks/useWebSocket'
 interface NavItem {
   label: string
   path: string
-  icon: React.ComponentType<{ size?: number; className?: string }>
+  icon: React.ElementType
 }
 
 interface NavGroup {

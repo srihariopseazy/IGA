@@ -44,22 +44,22 @@ const ComplianceCenter: React.FC = () => {
     <div className="space-y-6">
       <PageHeader
         title="Compliance Center"
-        subtitle="Regulatory compliance monitoring and reporting"
+        description="Regulatory compliance monitoring and reporting"
       />
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatsCard title="Frameworks" value={FRAMEWORKS.length} />
+        <StatsCard label="Frameworks" value={FRAMEWORKS.length} />
         <StatsCard
-          title="Avg Score"
+          label="Avg Score"
           value={
             reports.length
               ? Math.round(reports.reduce((s, r) => s + r.score, 0) / reports.length) + "%"
               : "N/A"
           }
-          color="blue"
+         
         />
-        <StatsCard title="Critical Findings" value={reports.reduce((s, r) => s + r.critical_count, 0)} color="red" />
-        <StatsCard title="Reports Generated" value={reports.length} color="green" />
+        <StatsCard label="Critical Findings" value={reports.reduce((s, r) => s + r.critical_count, 0)} />
+        <StatsCard label="Reports Generated" value={reports.length} />
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">

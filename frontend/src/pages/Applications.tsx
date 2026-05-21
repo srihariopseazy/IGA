@@ -67,7 +67,7 @@ const Applications: React.FC = () => {
     <div className="space-y-6">
       <PageHeader
         title="Applications"
-        subtitle="Manage enterprise applications and entitlements"
+        description="Manage enterprise applications and entitlements"
         actions={
           <button
             onClick={() => setShowCreate(true)}
@@ -79,14 +79,14 @@ const Applications: React.FC = () => {
       />
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatsCard title="Total Applications" value={apps.length} />
-        <StatsCard title="Active" value={apps.filter((a) => a.status === "active").length} color="green" />
-        <StatsCard title="Total Entitlements" value={apps.reduce((s, a) => s + a.entitlement_count, 0)} color="blue" />
-        <StatsCard title="Total Users" value={apps.reduce((s, a) => s + a.user_count, 0)} />
+        <StatsCard label="Total Applications" value={apps.length} />
+        <StatsCard label="Active" value={apps.filter((a) => a.status === "active").length} />
+        <StatsCard label="Total Entitlements" value={apps.reduce((s, a) => s + a.entitlement_count, 0)} />
+        <StatsCard label="Total Users" value={apps.reduce((s, a) => s + a.user_count, 0)} />
       </div>
 
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow">
-        <DataTable columns={columns} data={apps} isLoading={isLoading} />
+        <DataTable columns={columns} data={apps} loading={isLoading} />
       </div>
 
       {showCreate && (

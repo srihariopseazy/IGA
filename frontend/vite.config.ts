@@ -13,5 +13,5 @@ export default defineConfig({
       '/graphql': { target: 'http://localhost:8000', changeOrigin: true },
     },
   },
-  build: { outDir: 'dist', sourcemap: false },
+  build: { outDir: 'dist', sourcemap: true },
 })

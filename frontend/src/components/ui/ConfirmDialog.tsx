@@ -4,10 +4,11 @@ import { AlertTriangle, X } from 'lucide-react'
 interface ConfirmDialogProps {
   open: boolean
   title: string
-  message: string
+  message: string | React.ReactNode
   confirmLabel?: string
   cancelLabel?: string
   variant?: 'danger' | 'warning' | 'default'
+  confirmVariant?: string
   onConfirm: () => void
   onCancel: () => void
   loading?: boolean
