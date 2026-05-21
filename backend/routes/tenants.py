@@ -60,7 +60,7 @@ async def get_current_user(request: Request, db: AsyncSession = Depends(get_db))
 
 
 async def require_superadmin(current_user: User = Depends(get_current_user)) -> User:
-    if not current_user.is_superadmin:
+    if not current_user.is_superuser:
         raise HTTPException(
             status_code=403,
             detail="Super-admin access required",

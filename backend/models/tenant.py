@@ -40,7 +40,7 @@ class Tenant(Base):
     plan_tier = Column(String(50), nullable=False, default="free")
     max_users = Column(Integer, nullable=False, default=100)
     settings = Column(JSONB, nullable=True, default=dict)
-    metadata = Column(JSONB, nullable=True, default=dict)
+    extra_data = Column(JSONB, nullable=True, default=dict)
 
     # Relationships
     branding = relationship(

@@ -94,7 +94,7 @@ def _user_to_dict(user: User, include_sensitive: bool = False) -> dict:
         "first_name": user.first_name,
         "last_name": user.last_name,
         "display_name": user.display_name,
-        "full_name": user.full_name or f"{user.first_name or ''} {user.last_name or ''}".strip(),
+        "full_name": f"{user.first_name or ''} {user.last_name or ''}".strip(),
         "phone": user.phone,
         "employee_id": user.employee_id,
         "is_active": user.is_active,
@@ -110,7 +110,7 @@ def _user_to_dict(user: User, include_sensitive: bool = False) -> dict:
     }
     if include_sensitive:
         d["failed_login_attempts"] = user.failed_login_attempts
-        d["locked_until"] = user.locked_until.isoformat() if user.locked_until else None
+        d["locked_at"] = user.locked_at.isoformat() if user.locked_at else None
     return d
 
 # ---------------------------------------------------------------------------
@@ -197,7 +197,7 @@ async def create_user(
     temp_password = secrets.token_urlsafe(16)
     new_user = User(
         email=body.email.lower(),
-        hashed_password=get_password_hash(temp_password),
+        password_hash=get_password_hash(temp_password),
         first_name=body.first_name,
         last_name=body.last_name,
         display_name=body.display_name or f"{body.first_name} {body.last_name}",
@@ -376,7 +376,7 @@ async def lock_user(
     user.is_locked = True
     from datetime import timedelta
     if body.duration_minutes:
-        user.locked_until = datetime.now(timezone.utc) + timedelta(minutes=body.duration_minutes)
+        user.locked_at = datetime.now(timezone.utc) + timedelta(minutes=body.duration_minutes)
     await db.commit()
 
     # Revoke all active sessions
@@ -412,7 +412,7 @@ async def unlock_user(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
     user.is_locked = False
-    user.locked_until = None
+    user.locked_at = None
     user.failed_login_attempts = 0
     await db.commit()
 
@@ -477,7 +477,7 @@ async def activate_user(
 
     user.is_active = True
     user.is_locked = False
-    user.locked_until = None
+    user.locked_at = None
     user.failed_login_attempts = 0
     await db.commit()
 
@@ -507,7 +507,7 @@ async def admin_reset_password(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
     new_password = body.new_password or secrets.token_urlsafe(16)
-    user.hashed_password = get_password_hash(new_password)
+    user.password_hash = get_password_hash(new_password)
     user.force_password_change = body.force_change_on_login
     user.password_changed_at = datetime.now(timezone.utc)
     await db.commit()
@@ -915,7 +915,7 @@ async def bulk_import_users(
             temp_password = secrets.token_urlsafe(16)
             new_user = User(
                 email=email,
-                hashed_password=get_password_hash(temp_password),
+                password_hash=get_password_hash(temp_password),
                 first_name=row.get("first_name", "").strip(),
                 last_name=row.get("last_name", "").strip(),
                 display_name=row.get("display_name", "").strip() or None,

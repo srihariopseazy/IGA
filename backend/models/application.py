@@ -52,7 +52,7 @@ class Application(Base):
         index=True,
     )
     is_active = Column(Boolean, nullable=False, default=True, index=True)
-    metadata = Column(JSONB, nullable=True, default=dict)
+    extra_data = Column(JSONB, nullable=True, default=dict)
     created_by = Column(UUID(as_uuid=True), nullable=True)
     updated_by = Column(UUID(as_uuid=True), nullable=True)
 
@@ -97,7 +97,7 @@ class Entitlement(Base):
     )
     requires_approval = Column(Boolean, nullable=False, default=False)
     is_requestable = Column(Boolean, nullable=False, default=True)
-    metadata = Column(JSONB, nullable=True, default=dict)
+    extra_data = Column(JSONB, nullable=True, default=dict)
 
     # Relationships
     application = relationship("Application", back_populates="entitlements")

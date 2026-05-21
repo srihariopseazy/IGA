@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Optional, List, TYPE_CHECKING
 
 from sqlalchemy import (
+    JSON,
     Column,
     String,
     Integer,
@@ -13,8 +14,9 @@ from sqlalchemy import (
     Text,
     ForeignKey,
     Index,
+    func,
 )
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.dialects.postgresql import UUID, INET, JSONB
 from sqlalchemy.orm import relationship
 
 from backend.database import Base
@@ -33,24 +35,22 @@ class User(Base):
     )
     email = Column(String(320), nullable=False, index=True)
     username = Column(String(150), nullable=True, index=True)
-    hashed_password = Column(Text, nullable=True)
+    password_hash = Column(Text, nullable=True)
     first_name = Column(String(100), nullable=True)
     last_name = Column(String(100), nullable=True)
     display_name = Column(String(255), nullable=True)
-    full_name = Column(String(255), nullable=True)
     is_active = Column(Boolean, nullable=False, default=True, index=True)
     is_locked = Column(Boolean, nullable=False, default=False, index=True)
     employee_id = Column(String(100), nullable=True, index=True)
-    department_id = Column(UUID(as_uuid=True), ForeignKey("department.id"), nullable=True)
+    department = Column(String(255), nullable=True)
     manager_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
 
-    is_superadmin = Column(Boolean, nullable=False, default=False)
-    is_tenant_admin = Column(Boolean, nullable=False, default=False)
+    is_superuser = Column(Boolean, nullable=False, default=False)
     email_verified = Column(Boolean, nullable=False, default=False)
     mfa_enabled = Column(Boolean, nullable=False, default=False)
 
     failed_login_attempts = Column(Integer, nullable=False, default=0)
-    locked_until = Column(DateTime(timezone=True), nullable=True)
+    locked_at = Column(DateTime(timezone=True), nullable=True)
     last_login_at = Column(DateTime(timezone=True), nullable=True)
     password_changed_at = Column(DateTime(timezone=True), nullable=True)
 
@@ -59,8 +59,6 @@ class User(Base):
     timezone = Column(String(64), nullable=True, default="UTC")
     locale = Column(String(10), nullable=True, default="en")
 
-    created_by = Column(UUID(as_uuid=True), nullable=True)
-    updated_by = Column(UUID(as_uuid=True), nullable=True)
 
     # Relationships
     profile = relationship("UserProfile", back_populates="user", uselist=False, lazy="select")
@@ -107,7 +105,6 @@ class UserProfile(Base):
         index=True,
     )
     job_title = Column(String(200), nullable=True)
-    department = Column(String(200), nullable=True)
     location = Column(String(200), nullable=True)
     hire_date = Column(DateTime(timezone=True), nullable=True)
     exit_date = Column(DateTime(timezone=True), nullable=True)
@@ -141,9 +138,9 @@ class LoginHistory(Base):
         nullable=False,
         index=True,
     )
-    ip_address = Column(String(45), nullable=True)
+    ip_address = Column(INET, nullable=True)
     user_agent = Column(Text, nullable=True)
-    device_fingerprint = Column(String(255), nullable=True)
+    device_info = Column(JSON, nullable=True)
     country = Column(String(100), nullable=True)
     city = Column(String(100), nullable=True)
     success = Column(Boolean, nullable=False, default=False)
@@ -164,39 +161,29 @@ class LoginHistory(Base):
 
 class Session(Base):
     __tablename__ = "user_sessions"
-
+    # Override base columns not in this table
+    updated_at = None
+    deleted_at = None
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-
-    user_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
-    tenant_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("tenants.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
-    token_hash = Column(String(255), nullable=False, unique=True, index=True)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    session_token_hash = Column(String(255), nullable=False, unique=True, index=True)
     refresh_token_hash = Column(String(255), nullable=True, unique=True, index=True)
-    ip_address = Column(String(45), nullable=True)
+    ip_address = Column(INET, nullable=True)
     user_agent = Column(Text, nullable=True)
-    device_fingerprint = Column(String(255), nullable=True)
-    expires_at = Column(DateTime(timezone=True), nullable=False)
-    last_active_at = Column(DateTime(timezone=True), nullable=True)
+    device_info = Column(JSON, nullable=True)
     is_active = Column(Boolean, nullable=False, default=True, index=True)
-
+    mfa_verified = Column(Boolean, nullable=False, default=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    last_activity_at = Column(DateTime(timezone=True), nullable=False, default=datetime.now)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     # Relationships
     user = relationship("User", back_populates="sessions")
-
     __table_args__ = (
         Index("ix_user_sessions_user_active", "user_id", "is_active"),
         Index("ix_user_sessions_tenant_active", "tenant_id", "is_active"),
     )
-
-    def __repr__(self) -> str:
+    def __repr__(self):
         return f"<Session id={self.id} user_id={self.user_id} is_active={self.is_active}>"
 
 
@@ -252,7 +239,7 @@ class PasswordResetToken(Base):
         nullable=False,
         index=True,
     )
-    token_hash = Column(String(255), nullable=False, unique=True, index=True)
+    session_token_hash = Column(String(255), nullable=False, unique=True, index=True)
     expires_at = Column(DateTime(timezone=True), nullable=False)
     used_at = Column(DateTime(timezone=True), nullable=True)
 
@@ -277,7 +264,7 @@ class EmailVerificationToken(Base):
         nullable=False,
         index=True,
     )
-    token_hash = Column(String(255), nullable=False, unique=True, index=True)
+    session_token_hash = Column(String(255), nullable=False, unique=True, index=True)
     expires_at = Column(DateTime(timezone=True), nullable=False)
     used_at = Column(DateTime(timezone=True), nullable=True)
 

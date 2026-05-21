@@ -12,7 +12,7 @@ from sqlalchemy import (
     Index,
     Enum as SAEnum,
 )
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.dialects.postgresql import INET, UUID, JSONB
 from sqlalchemy.orm import relationship
 
 from backend.database import Base
@@ -39,7 +39,7 @@ class AuditLog(Base):
     resource_type = Column(String(100), nullable=True, index=True)
     resource_id = Column(UUID(as_uuid=True), nullable=True, index=True)
     details = Column(JSONB, nullable=True, default=dict)
-    ip_address = Column(String(45), nullable=True)
+    ip_address = Column(INET, nullable=True)
     user_agent = Column(Text, nullable=True)
     session_id = Column(UUID(as_uuid=True), nullable=True, index=True)
     result = Column(

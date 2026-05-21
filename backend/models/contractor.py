@@ -26,14 +26,14 @@ class ContractorProfile(Base):
 
     user_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("user.id", ondelete="CASCADE"),
+        ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
         unique=True,
         index=True,
     )
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -43,7 +43,7 @@ class ContractorProfile(Base):
     contract_number = Column(String(100), nullable=True, index=True)
     manager_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("user.id", ondelete="SET NULL"),
+        ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
     )
     project_name = Column(String(255), nullable=True)
@@ -71,13 +71,13 @@ class TemporaryAccessGrant(Base):
 
     user_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("user.id", ondelete="CASCADE"),
+        ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -86,7 +86,7 @@ class TemporaryAccessGrant(Base):
     justification = Column(Text, nullable=True)
     approved_by = Column(
         UUID(as_uuid=True),
-        ForeignKey("user.id", ondelete="SET NULL"),
+        ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
     )
     valid_from = Column(DateTime(timezone=True), nullable=False)

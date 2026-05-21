@@ -34,7 +34,7 @@ class Department(Base):
     code = Column(String(100), nullable=True)
     parent_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("department.id", ondelete="SET NULL"),
+        ForeignKey("departments.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )
@@ -48,8 +48,8 @@ class Department(Base):
     updated_by = Column(UUID(as_uuid=True), nullable=True)
 
     # Relationships
-    parent = relationship("Department", remote_side="Department.id", foreign_keys=[parent_id])
-    children = relationship("Department", back_populates="parent", foreign_keys=[parent_id])
+    parent = relationship("Department", primaryjoin="Department.parent_id==Department.id", back_populates="children", foreign_keys="[Department.parent_id]", remote_side="Department.id")
+    children = relationship("Department", primaryjoin="Department.id==Department.parent_id", back_populates="parent", foreign_keys="[Department.parent_id]")
 
     __table_args__ = (
         Index("ix_department_tenant_code", "tenant_id", "code"),
@@ -96,8 +96,8 @@ class Role(Base):
     updated_by = Column(UUID(as_uuid=True), nullable=True)
 
     # Relationships
-    parent = relationship("Role", remote_side="Role.id", foreign_keys=[parent_id])
-    children = relationship("Role", back_populates="parent", foreign_keys=[parent_id])
+    parent = relationship("Role", primaryjoin="Role.parent_id==Role.id", back_populates="children", foreign_keys="[Role.parent_id]", remote_side="Role.id")
+    children = relationship("Role", primaryjoin="Role.id==Role.parent_id", back_populates="parent", foreign_keys="[Role.parent_id]")
     permissions = relationship(
         "RolePermission", back_populates="role", lazy="select"
     )

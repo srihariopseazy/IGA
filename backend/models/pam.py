@@ -26,7 +26,7 @@ class PrivilegedAccount(Base):
 
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -39,7 +39,7 @@ class PrivilegedAccount(Base):
     system_name = Column(String(255), nullable=False, index=True)
     owner_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("user.id", ondelete="SET NULL"),
+        ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )
@@ -78,13 +78,13 @@ class PAMSession(Base):
 
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     user_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("user.id", ondelete="CASCADE"),
+        ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -130,13 +130,13 @@ class BreakGlassRequest(Base):
 
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     user_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("user.id", ondelete="CASCADE"),
+        ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -158,7 +158,7 @@ class BreakGlassRequest(Base):
     )
     approved_by = Column(
         UUID(as_uuid=True),
-        ForeignKey("user.id", ondelete="SET NULL"),
+        ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
     )
     approved_at = Column(DateTime(timezone=True), nullable=True)

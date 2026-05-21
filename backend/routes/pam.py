@@ -425,7 +425,7 @@ async def approve_break_glass_request(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if not current_user.is_tenant_admin and not current_user.is_superadmin:
+    if not current_user.is_superuser and not current_user.is_superuser:
         raise HTTPException(status_code=403, detail="Only tenant admins can approve break-glass requests")
 
     result = await db.execute(
@@ -469,7 +469,7 @@ async def deny_break_glass_request(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if not current_user.is_tenant_admin and not current_user.is_superadmin:
+    if not current_user.is_superuser and not current_user.is_superuser:
         raise HTTPException(status_code=403, detail="Only tenant admins can deny break-glass requests")
 
     result = await db.execute(

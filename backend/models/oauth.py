@@ -25,7 +25,7 @@ class OAuthClient(Base):
 
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -55,7 +55,7 @@ class OAuthToken(Base):
 
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -67,7 +67,7 @@ class OAuthToken(Base):
     )
     user_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("user.id", ondelete="CASCADE"),
+        ForeignKey("users.id", ondelete="CASCADE"),
         nullable=True,
         index=True,
     )

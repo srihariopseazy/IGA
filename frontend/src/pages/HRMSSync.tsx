@@ -1,10 +1,10 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "../utils/api";
-import PageHeader from "../components/ui/PageHeader";
-import StatsCard from "../components/ui/StatsCard";
-import DataTable from "../components/ui/DataTable";
-import Badge from "../components/ui/Badge";
+import api from "../utils/api";
+import { PageHeader } from "../components/ui/PageHeader";
+import { StatsCard } from "../components/ui/StatsCard";
+import { DataTable } from "../components/ui/DataTable";
+import { Badge } from "../components/ui/Badge";
 
 interface SyncJob {
   id: string;

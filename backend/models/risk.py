@@ -14,7 +14,7 @@ from sqlalchemy import (
     Index,
     Enum as SAEnum,
 )
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy.dialects.postgresql import INET, UUID, JSONB
 from sqlalchemy.orm import relationship
 
 from backend.database import Base
@@ -55,7 +55,7 @@ class RiskScore(Base):
 
     # Relationships
     user = relationship("User", foreign_keys=[user_id])
-    history = relationship("IdentityRiskHistory", back_populates="risk_score_ref", lazy="select")
+    history = relationship("IdentityRiskHistory", back_populates="risk_score_ref", primaryjoin="RiskScore.user_id==IdentityRiskHistory.user_id", foreign_keys="[IdentityRiskHistory.user_id]", lazy="select")
 
     __table_args__ = (
         Index("ix_risk_scores_tenant_level", "tenant_id", "risk_level"),
@@ -139,12 +139,12 @@ class UserBehaviorEvent(Base):
     event_type = Column(String(100), nullable=False, index=True)
     resource_type = Column(String(100), nullable=True, index=True)
     resource_id = Column(UUID(as_uuid=True), nullable=True)
-    ip_address = Column(String(45), nullable=True)
+    ip_address = Column(INET, nullable=True)
     device_fingerprint = Column(String(255), nullable=True)
     country = Column(String(100), nullable=True)
     anomaly_score = Column(Float, nullable=False, default=0.0)
     is_anomalous = Column(Boolean, nullable=False, default=False, index=True)
-    metadata = Column(JSONB, nullable=True, default=dict)
+    extra_data = Column(JSONB, nullable=True, default=dict)
 
     # Relationships
     user = relationship("User", foreign_keys=[user_id])

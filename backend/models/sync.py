@@ -25,7 +25,7 @@ class HRMSSyncJob(Base):
 
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -64,7 +64,7 @@ class LDAPSyncJob(Base):
 
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -116,7 +116,7 @@ class SCIMSyncJob(Base):
 
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )

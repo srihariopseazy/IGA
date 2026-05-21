@@ -304,3 +304,6 @@ class EmailService:
 
 
 email_service = EmailService()
+
+async def send_email(to, subject, html_body, text_body=''):
+    return await email_service.send_email(to=[to] if isinstance(to, str) else to, subject=subject, html_body=html_body, text_body=text_body)

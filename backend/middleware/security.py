@@ -66,8 +66,8 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["Permissions-Policy"] = PERMISSIONS_POLICY
 
         # Remove potentially revealing headers
-        response.headers.pop("Server", None)
-        response.headers.pop("X-Powered-By", None)
+        response.headers["Server"] = ""
+        if "X-Powered-By" in response.headers: del response.headers["X-Powered-By"]
 
         # XSS protection header (legacy browsers)
         response.headers["X-XSS-Protection"] = "1; mode=block"

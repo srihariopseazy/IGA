@@ -1,8 +1,8 @@
 import React from "react";
 import { useQuery } from "@tanstack/react-query";
-import { api } from "../utils/api";
-import PageHeader from "../components/ui/PageHeader";
-import StatsCard from "../components/ui/StatsCard";
+import api from "../utils/api";
+import { PageHeader } from "../components/ui/PageHeader";
+import { StatsCard } from "../components/ui/StatsCard";
 
 interface AnalyticsData {
   user_growth: { month: string; count: number }[];

@@ -198,7 +198,7 @@ class TenantService:
             email=admin_email,
             username=admin_email,
             status="active",
-            is_tenant_admin=True,
+            is_superuser=True,
             email_verified=True,
             created_by=created_by,
         )

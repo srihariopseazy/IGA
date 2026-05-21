@@ -664,12 +664,12 @@ class LifecycleService:
         )
         admin_user_ids = {str(r[0]) for r in admin_users_result.all()}
 
-        # Also include is_tenant_admin users
+        # Also include is_superuser users
         tenant_admins_result = await self.db.execute(
             select(User.id).where(
                 and_(
                     User.tenant_id == tenant_id,
-                    User.is_tenant_admin == True,  # noqa: E712
+                    User.is_superuser == True,  # noqa: E712
                     User.deleted_at.is_(None),
                 )
             )

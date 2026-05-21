@@ -1,9 +1,9 @@
 import React from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { api } from "../utils/api";
-import PageHeader from "../components/ui/PageHeader";
-import StatsCard from "../components/ui/StatsCard";
-import Badge from "../components/ui/Badge";
+import api from "../utils/api";
+import { PageHeader } from "../components/ui/PageHeader";
+import { StatsCard } from "../components/ui/StatsCard";
+import { Badge } from "../components/ui/Badge";
 
 interface ComplianceReport {
   id: string;

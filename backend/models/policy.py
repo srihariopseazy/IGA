@@ -27,7 +27,7 @@ class PolicyRule(Base):
 
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -68,7 +68,7 @@ class GeoRestriction(Base):
 
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -105,13 +105,13 @@ class DeviceTrustRecord(Base):
 
     user_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("user.id", ondelete="CASCADE"),
+        ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     tenant_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("tenant.id", ondelete="CASCADE"),
+        ForeignKey("tenants.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )

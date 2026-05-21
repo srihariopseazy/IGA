@@ -85,7 +85,7 @@ class Query:
                 UserType(
                     id=strawberry.ID(str(u.id)),
                     email=u.email,
-                    full_name=u.full_name,
+                    full_name=f"{u.first_name or ''} {u.last_name or ''}".strip(),
                     is_active=u.is_active,
                     created_at=u.created_at,
                 )
@@ -114,7 +114,7 @@ class Query:
             return UserType(
                 id=strawberry.ID(str(u.id)),
                 email=u.email,
-                full_name=u.full_name,
+                full_name=f"{u.first_name or ''} {u.last_name or ''}".strip(),
                 is_active=u.is_active,
                 created_at=u.created_at,
             )

@@ -56,7 +56,7 @@ class UserService:
             id=uuid.uuid4(),
             tenant_id=tenant_id,
             email=data["email"].lower(),
-            hashed_password=hashed,
+            password_hash=hashed,
             first_name=data.get("first_name", ""),
             last_name=data.get("last_name", ""),
             display_name=data.get("display_name") or f"{data.get('first_name', '')} {data.get('last_name', '')}".strip(),
@@ -201,7 +201,7 @@ class UserService:
             raise ValueError("User not found")
 
         user.status = "locked"
-        user.locked_until = None  # Manual lock — indefinite
+        user.locked_at = None  # Manual lock — indefinite
         await self._audit(
             tenant_id=tenant_id,
             user_id=locked_by,
@@ -226,7 +226,7 @@ class UserService:
             raise ValueError("User not found")
 
         user.status = "active"
-        user.locked_until = None
+        user.locked_at = None
         user.failed_login_attempts = 0
         await redis_client.clear_failed_logins(str(user.id))
 
@@ -276,7 +276,7 @@ class UserService:
             raise ValueError("User not found")
 
         user.status = "active"
-        user.locked_until = None
+        user.locked_at = None
         user.failed_login_attempts = 0
 
         await self._audit(

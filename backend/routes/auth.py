@@ -32,7 +32,7 @@ from backend.middleware.auth import (
     get_redis,
 )
 from backend.utils.audit import log_action
-from backend.models.user import User, Session as UserSession, LoginHistory
+from backend.models.user import User, Session as Session, LoginHistory
 from backend.models.tenant import Tenant
 from backend.utils.email import send_email
 from backend.utils.notifications import notify_user
@@ -220,8 +220,8 @@ async def login(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
     # Check account lockout
-    if user.locked_until and user.locked_until > datetime.now(timezone.utc):
-        remaining = int((user.locked_until - datetime.now(timezone.utc)).total_seconds())
+    if user.locked_at and user.locked_at > datetime.now(timezone.utc):
+        remaining = int((user.locked_at - datetime.now(timezone.utc)).total_seconds())
         background_tasks.add_task(
             _record_login_history, db, str(user.id), ip, ua, False, "account_locked"
         )
@@ -231,11 +231,11 @@ async def login(
         )
 
     # Verify password
-    if not verify_password(body.password, user.hashed_password):
+    if not verify_password(body.password, user.password_hash):
         # Increment failed attempts
         user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
         if user.failed_login_attempts >= 10:
-            user.locked_until = datetime.now(timezone.utc) + timedelta(minutes=30)
+            user.locked_at = datetime.now(timezone.utc) + timedelta(minutes=30)
             user.failed_login_attempts = 0
         await db.commit()
         background_tasks.add_task(
@@ -296,7 +296,7 @@ async def login(
 
     # Reset failed attempts on success
     user.failed_login_attempts = 0
-    user.locked_until = None
+    user.locked_at = None
     user.last_login_at = datetime.now(timezone.utc)
     await db.commit()
 
@@ -319,15 +319,17 @@ async def login(
     )
 
     # Store session
-    session = UserSession(
+    session = Session(
+        session_token_hash=hashlib.sha256(access_token.encode()).hexdigest(),
         user_id=user.id,
         tenant_id=user.tenant_id,
         refresh_token_hash=hashlib.sha256(refresh_token.encode()).hexdigest(),
         ip_address=ip,
         user_agent=ua,
-        device_fingerprint=fingerprint,
+        device_info={"fingerprint": fingerprint},
         expires_at=datetime.now(timezone.utc) + (timedelta(days=30) if body.remember_me else timedelta(days=7)),
         is_active=True,
+        last_activity_at=datetime.now(timezone.utc),
     )
     db.add(session)
     await db.commit()
@@ -373,12 +375,12 @@ async def refresh_token(
     token_hash = hashlib.sha256(body.refresh_token.encode()).hexdigest()
 
     result = await db.execute(
-        select(UserSession).where(
+        select(Session).where(
             and_(
-                UserSession.user_id == user_id,
-                UserSession.refresh_token_hash == token_hash,
-                UserSession.is_active == True,
-                UserSession.expires_at > datetime.now(timezone.utc),
+                Session.user_id == user_id,
+                Session.refresh_token_hash == token_hash,
+                Session.is_active == True,
+                Session.expires_at > datetime.now(timezone.utc),
             )
         )
     )
@@ -428,12 +430,12 @@ async def logout(
     # Revoke the current session based on device fingerprint
     device = request.headers.get("X-Device-Fingerprint") or _generate_device_fingerprint(request)
     await db.execute(
-        update(UserSession)
+        update(Session)
         .where(
             and_(
-                UserSession.user_id == current_user.id,
-                UserSession.device_fingerprint == device,
-                UserSession.is_active == True,
+                Session.user_id == current_user.id,
+                Session.device_info["fingerprint"].astext == device,
+                Session.is_active == True,
             )
         )
         .values(is_active=False)
@@ -482,11 +484,12 @@ async def register(
     # Create user
     user = User(
         email=body.email.lower(),
-        hashed_password=get_password_hash(body.password),
+        password_hash=get_password_hash(body.password),
         first_name=body.first_name,
         last_name=body.last_name,
         tenant_id=body.tenant_id,
         is_active=True,
+        last_activity_at=datetime.now(timezone.utc),
         is_locked=False,
         email_verified=False,
     )
@@ -604,14 +607,14 @@ async def reset_password(
     if not user:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired reset token")
 
-    user.hashed_password = get_password_hash(body.new_password)
+    user.password_hash = get_password_hash(body.new_password)
     user.password_reset_token = None
     user.password_reset_expires = None
     user.password_changed_at = datetime.now(timezone.utc)
     # Revoke all sessions
     await db.execute(
-        update(UserSession)
-        .where(and_(UserSession.user_id == user.id, UserSession.revoked == False))
+        update(Session)
+        .where(and_(Session.user_id == user.id, Session.revoked == False))
         .values(is_active=False)
     )
     await db.commit()
@@ -787,7 +790,7 @@ async def disable_mfa(
     db: AsyncSession = Depends(get_db),
 ):
     """Disable MFA. Requires current password and optionally current TOTP code."""
-    if not verify_password(body.password, current_user.hashed_password):
+    if not verify_password(body.password, current_user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid password")
 
     if current_user.mfa_enabled and body.code:
@@ -1043,7 +1046,7 @@ async def change_password(
     db: AsyncSession = Depends(get_db),
 ):
     """Change password. Requires current password."""
-    if not verify_password(body.current_password, current_user.hashed_password):
+    if not verify_password(body.current_password, current_user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Current password is incorrect")
 
     if body.new_password == body.current_password:
@@ -1052,7 +1055,7 @@ async def change_password(
             detail="New password must be different from current password",
         )
 
-    current_user.hashed_password = get_password_hash(body.new_password)
+    current_user.password_hash = get_password_hash(body.new_password)
     current_user.password_changed_at = datetime.now(timezone.utc)
     await db.commit()
 
@@ -1077,13 +1080,13 @@ async def list_sessions(
 ):
     """List all active sessions for the current user."""
     result = await db.execute(
-        select(UserSession).where(
+        select(Session).where(
             and_(
-                UserSession.user_id == current_user.id,
-                UserSession.is_active == True,
-                UserSession.expires_at > datetime.now(timezone.utc),
+                Session.user_id == current_user.id,
+                Session.is_active == True,
+                Session.expires_at > datetime.now(timezone.utc),
             )
-        ).order_by(UserSession.created_at.desc())
+        ).order_by(Session.created_at.desc())
     )
     sessions = result.scalars().all()
     return {
@@ -1092,10 +1095,10 @@ async def list_sessions(
                 "id": str(s.id),
                 "ip_address": s.ip_address,
                 "user_agent": s.user_agent,
-                "device_fingerprint": s.device_fingerprint,
+                "device_fingerprint": (s.device_info or {}).get("fingerprint"),
                 "created_at": s.created_at.isoformat(),
                 "expires_at": s.expires_at.isoformat(),
-                "last_active_at": s.last_active_at.isoformat() if s.last_active_at else None,
+                "last_activity_at": s.last_activity_at.isoformat() if s.last_activity_at else None,
             }
             for s in sessions
         ]
@@ -1111,8 +1114,8 @@ async def terminate_session(
 ):
     """Terminate a specific session."""
     result = await db.execute(
-        select(UserSession).where(
-            and_(UserSession.id == session_id, UserSession.user_id == current_user.id)
+        select(Session).where(
+            and_(Session.id == session_id, Session.user_id == current_user.id)
         )
     )
     session = result.scalar_one_or_none()
@@ -1139,12 +1142,12 @@ async def terminate_all_sessions(
     """Terminate all sessions except the current one."""
     current_device = _generate_device_fingerprint(request)
     await db.execute(
-        update(UserSession)
+        update(Session)
         .where(
             and_(
-                UserSession.user_id == current_user.id,
-                UserSession.is_active == True,
-                UserSession.device_fingerprint != current_device,
+                Session.user_id == current_user.id,
+                Session.is_active == True,
+                Session.device_info["fingerprint"].astext != current_device,
             )
         )
         .values(is_active=False)

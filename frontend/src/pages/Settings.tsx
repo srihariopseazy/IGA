@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "../utils/api";
-import PageHeader from "../components/ui/PageHeader";
+import api from "../utils/api";
+import { PageHeader } from "../components/ui/PageHeader";
 
 const Settings: React.FC = () => {
   const qc = useQueryClient();

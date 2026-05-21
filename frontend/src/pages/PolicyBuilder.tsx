@@ -1,8 +1,8 @@
 import React, { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { api } from "../utils/api";
-import PageHeader from "../components/ui/PageHeader";
-import Badge from "../components/ui/Badge";
+import api from "../utils/api";
+import { PageHeader } from "../components/ui/PageHeader";
+import { Badge } from "../components/ui/Badge";
 
 interface PolicyRule {
   id: string;

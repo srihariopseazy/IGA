@@ -48,17 +48,17 @@ class AuthService:
             raise ValueError("Invalid credentials")
 
         # 3. Check lockout
-        if user.locked_until and user.locked_until > datetime.now(timezone.utc):
-            raise ValueError(f"Account locked until {user.locked_until.isoformat()}")
+        if user.locked_at and user.locked_at > datetime.now(timezone.utc):
+            raise ValueError(f"Account locked until {user.locked_at.isoformat()}")
 
         # 4. Verify password
-        if not verify_password(password, user.hashed_password):
+        if not verify_password(password, user.password_hash):
             await redis_client.track_failed_login(str(user.id))
             count = await redis_client.get_failed_logins(str(user.id))
             if count >= settings.MAX_LOGIN_ATTEMPTS:
-                locked_until = datetime.now(timezone.utc) + timedelta(minutes=settings.LOCKOUT_DURATION_MINUTES)
+                locked_at = datetime.now(timezone.utc) + timedelta(minutes=settings.LOCKOUT_DURATION_MINUTES)
                 await self.db.execute(
-                    update(User).where(User.id == user.id).values(locked_until=locked_until, failed_login_attempts=count)
+                    update(User).where(User.id == user.id).values(locked_at=locked_at, failed_login_attempts=count)
                 )
                 await self.db.commit()
             await self._record_login_history(user.id, tenant.id, ip_address, user_agent, device_fingerprint, False, "Invalid password")
@@ -168,7 +168,7 @@ class AuthService:
 
             # Update session last_active
             await self.db.execute(
-                update(Session).where(Session.id == session.id).values(last_active_at=datetime.now(timezone.utc))
+                update(Session).where(Session.id == session.id).values(last_activity_at=datetime.now(timezone.utc))
             )
             await self.db.commit()
 
@@ -265,7 +265,7 @@ class AuthService:
         return False
 
     async def disable_mfa(self, user: User, password: str) -> bool:
-        if not verify_password(password, user.hashed_password):
+        if not verify_password(password, user.password_hash):
             raise ValueError("Invalid password")
 
         result = await self.db.execute(
@@ -422,7 +422,7 @@ class AuthService:
         hashed = hash_password(new_password)
         await self.db.execute(
             update(User).where(User.id == prt.user_id).values(
-                hashed_password=hashed,
+                password_hash=hashed,
                 password_changed_at=datetime.now(timezone.utc),
             )
         )
@@ -478,7 +478,7 @@ class AuthService:
                     Session.is_active == True,
                     Session.expires_at > datetime.now(timezone.utc),
                 )
-            ).order_by(Session.last_active_at.desc())
+            ).order_by(Session.last_activity_at.desc())
         )
         sessions = result.scalars().all()
         return [
@@ -488,7 +488,7 @@ class AuthService:
                 "user_agent": s.user_agent,
                 "device_fingerprint": s.device_fingerprint,
                 "created_at": s.created_at.isoformat(),
-                "last_active_at": s.last_active_at.isoformat() if s.last_active_at else None,
+                "last_activity_at": s.last_activity_at.isoformat() if s.last_activity_at else None,
                 "expires_at": s.expires_at.isoformat(),
             }
             for s in sessions
@@ -569,7 +569,7 @@ class AuthService:
             user_agent=user_agent,
             device_fingerprint=device_fingerprint,
             expires_at=expires_at,
-            last_active_at=datetime.now(timezone.utc),
+            last_activity_at=datetime.now(timezone.utc),
             is_active=True,
         )
         self.db.add(session)
