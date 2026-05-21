@@ -128,10 +128,10 @@ const PrivilegedAccess: React.FC = () => {
       />
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatsCard label="Active Sessions" value={sessions?.data.filter((s) => s.status === "active").length ?? 0} />
-        <StatsCard label="Total Sessions Today" value={sessions?.data.length ?? 0} />
-        <StatsCard label="Avg Duration (min)" value={Math.round((sessions?.data.reduce((s, r) => s + (r.duration_minutes ?? 0), 0) ?? 0) / Math.max(sessions?.data.length ?? 1, 1))} />
-        <StatsCard label="Break Glass (pending)" value={bgRequests?.data.filter((b) => b.status === "pending").length ?? 0} />
+        <StatsCard label="Active Sessions" value={(sessions?.data ?? []).filter((s: any) => s.status === "active").length ?? 0} />
+        <StatsCard label="Total Sessions Today" value={(sessions?.data ?? []).length ?? 0} />
+        <StatsCard label="Avg Duration (min)" value={Math.round(((sessions?.data ?? []).reduce((s: number, r: any) => s + (r.duration_minutes ?? 0), 0) ?? 0) / Math.max((sessions?.data ?? []).length ?? 1, 1))} />
+        <StatsCard label="Break Glass (pending)" value={(bgRequests?.data ?? []).filter((b: any) => b.status === "pending").length ?? 0} />
       </div>
 
       <div className="flex gap-2">

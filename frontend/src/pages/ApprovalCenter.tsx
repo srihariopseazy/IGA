@@ -4,6 +4,7 @@ import api from "../utils/api";
 import { PageHeader } from "../components/ui/PageHeader";
 import { StatsCard } from "../components/ui/StatsCard";
 import { DataTable } from "../components/ui/DataTable";
+import { ColumnDef } from "@tanstack/react-table";
 import { Badge } from "../components/ui/Badge";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 
@@ -50,54 +51,51 @@ const ApprovalCenter: React.FC = () => {
     },
   });
 
-  const columns = [
+  const columns: ColumnDef<PendingApproval, unknown>[] = [
     {
-      key: "id",
+      accessorKey: "id",
       header: "",
-      render: (v: string) => (
+      cell: ({ row }: any) => (
         <input
           type="checkbox"
-          checked={bulkSelected.includes(v)}
+          checked={bulkSelected.includes(row.original.id)}
           onChange={(e) =>
             setBulkSelected((prev) =>
-              e.target.checked ? [...prev, v] : prev.filter((id) => id !== v)
+              e.target.checked ? [...prev, row.original.id] : prev.filter((id: string) => id !== row.original.id)
             )
           }
         />
       ),
     },
-    { key: "requester_name", header: "Requester" },
-    { key: "entitlement_name", header: "Entitlement" },
-    { key: "application_name", header: "Application" },
+    { accessorKey: "requester_name", header: "Requester" },
+    { accessorKey: "entitlement_name", header: "Entitlement" },
+    { accessorKey: "application_name", header: "Application" },
     {
-      key: "risk_level",
+      accessorKey: "risk_level",
       header: "Risk",
-      render: (v: string) => (
-        <Badge variant={v === "high" ? "danger" : v === "medium" ? "warning" : "success"}>{v}</Badge>
-      ),
+      cell: ({ getValue }: any) => {
+        const v = getValue() as string
+        return <Badge variant={v === "high" ? "rejected" : v === "medium" ? "pending" : "active"}>{v}</Badge>
+      },
     },
     {
-      key: "created_at",
+      accessorKey: "created_at",
       header: "Requested",
-      render: (v: string) => new Date(v).toLocaleDateString(),
+      cell: ({ getValue }: any) => new Date(getValue() as string).toLocaleDateString(),
     },
     {
-      key: "id",
+      id: "actions",
       header: "Actions",
-      render: (v: string, row: PendingApproval) => (
+      cell: ({ row }: any) => (
         <div className="flex gap-2">
           <button
-            onClick={() => { setSelectedId(v); setAction("approve"); }}
+            onClick={() => { setSelectedId(row.original.id); setAction("approve"); }}
             className="px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700"
-          >
-            Approve
-          </button>
+          >Approve</button>
           <button
-            onClick={() => { setSelectedId(v); setAction("reject"); }}
+            onClick={() => { setSelectedId(row.original.id); setAction("reject"); }}
             className="px-2 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700"
-          >
-            Reject
-          </button>
+          >Reject</button>
         </div>
       ),
     },
