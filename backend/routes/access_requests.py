@@ -340,6 +340,41 @@ async def my_approvals(
     }
 
 
+
+@router.get("/pending-approvals")
+async def get_pending_approvals_alias(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(25, ge=1, le=100),
+    current_user = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Pending approvals - alias endpoint for frontend compatibility."""
+    from sqlalchemy import func
+    tenant_id = current_user.tenant_id
+    count_q = select(func.count(AccessRequest.id)).where(
+        and_(AccessRequest.tenant_id == tenant_id,
+             AccessRequest.status == "pending",
+             AccessRequest.deleted_at.is_(None))
+    )
+    total = (await db.execute(count_q)).scalar() or 0
+    q = select(AccessRequest).where(
+        and_(AccessRequest.tenant_id == tenant_id,
+             AccessRequest.status == "pending",
+             AccessRequest.deleted_at.is_(None))
+    ).order_by(AccessRequest.created_at.desc()).offset((page-1)*page_size).limit(page_size)
+    result = await db.execute(q)
+    requests = result.scalars().all()
+    return {
+        "items": [{"id": str(r.id), "request_number": r.request_number,
+                   "requester_id": str(r.requester_id), "target_user_id": str(r.target_user_id),
+                   "request_type": r.request_type, "status": r.status,
+                   "priority": r.priority, "business_justification": r.business_justification,
+                   "risk_score": r.risk_score,
+                   "created_at": r.created_at.isoformat() if r.created_at else None}
+                  for r in requests],
+        "total": total, "page": page, "page_size": page_size,
+    }
+
 @router.get("/{request_id}")
 async def get_access_request(
     request_id: str,

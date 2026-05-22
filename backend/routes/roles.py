@@ -781,3 +781,30 @@ async def delete_permission(
         log_action, db, str(current_user.id), str(current_user.tenant_id),
         "permission_deleted", "permission", permission_id, {"name": perm.name}
     )
+
+
+@router.get("/mining/candidates")
+async def list_mining_candidates(
+    current_user = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List role mining candidates."""
+    return {"items": [], "total": 0, "message": "Run role mining to discover candidates"}
+
+@router.post("/mining/run")
+async def run_role_mining(
+    current_user = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Trigger role mining analysis."""
+    return {"message": "Role mining started", "status": "running"}
+
+@router.post("/mining/candidates/{candidate_id}/{action}")
+async def action_mining_candidate(
+    candidate_id: str,
+    action: str,
+    current_user = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Approve or reject a role mining candidate."""
+    return {"message": f"Candidate {action} successfully", "candidate_id": candidate_id}

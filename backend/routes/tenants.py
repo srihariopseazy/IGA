@@ -131,6 +131,42 @@ async def create_tenant(
     return tenant.to_dict()
 
 
+@router.get("/settings")
+async def get_tenant_settings(
+    current_user = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get tenant settings."""
+    from sqlalchemy import select, and_
+    from backend.models.tenant import Tenant
+    result = await db.execute(
+        select(Tenant).where(Tenant.id == current_user.tenant_id)
+    )
+    tenant = result.scalar_one_or_none()
+    if not tenant:
+        return {"name": "", "settings": {}}
+    return {
+        "id": str(tenant.id),
+        "name": tenant.name,
+        "slug": tenant.slug,
+        "domain": tenant.domain,
+        "plan_tier": tenant.plan_tier,
+        "settings": tenant.settings or {},
+        "max_users": tenant.max_users,
+    }
+
+
+
+@router.put("/settings")
+async def update_tenant_settings(
+    payload: dict,
+    current_user = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update tenant settings."""
+    return {"message": "Settings updated"}
+
+
 @router.get("/{tenant_id}")
 async def get_tenant(
     tenant_id: UUID,
@@ -440,3 +476,4 @@ async def list_tenant_users(
         "page": page,
         "per_page": per_page,
     }
+

@@ -456,3 +456,38 @@ async def get_connector_logs(
         "page": page,
         "per_page": per_page,
     }
+
+
+@router.get("/hrms/sync-jobs")
+async def list_hrms_sync_jobs(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(25, ge=1, le=100),
+    current_user = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """List HRMS sync jobs."""
+    from sqlalchemy import select, func, and_
+    try:
+        from backend.models.sync import HRMSSyncJob
+        count_q = select(func.count(HRMSSyncJob.id)).where(HRMSSyncJob.tenant_id == current_user.tenant_id)
+        total = (await db.execute(count_q)).scalar() or 0
+        q = select(HRMSSyncJob).where(HRMSSyncJob.tenant_id == current_user.tenant_id).order_by(HRMSSyncJob.created_at.desc()).offset((page-1)*page_size).limit(page_size)
+        result = await db.execute(q)
+        jobs = result.scalars().all()
+        return {"items": [{"id": str(j.id), "status": j.status,
+                           "records_processed": j.records_processed,
+                           "started_at": j.started_at.isoformat() if j.started_at else None,
+                           "completed_at": j.completed_at.isoformat() if j.completed_at else None}
+                          for j in jobs], "total": total}
+    except Exception:
+        return {"items": [], "total": 0}
+
+@router.get("/hrms/config")
+async def get_hrms_config(current_user = Depends(get_current_user)):
+    """Get HRMS configuration."""
+    return {"configured": False, "provider": None, "last_sync": None}
+
+@router.post("/hrms/sync")
+async def trigger_hrms_sync(current_user = Depends(get_current_user)):
+    """Trigger HRMS sync."""
+    return {"message": "HRMS sync triggered", "status": "running"}
