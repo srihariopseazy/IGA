@@ -39,14 +39,14 @@ async def list_notifications(
 ):
     query = select(Notification).where(
         and_(
-            Notification.user_id == current_user.id,
+            Notification.recipient_id == current_user.id,
             Notification.tenant_id == current_user.tenant_id,
         )
     )
     if unread_only:
         query = query.where(Notification.is_read == False)  # noqa: E712
     if notification_type:
-        query = query.where(Notification.notification_type == notification_type)
+        query = query.where(Notification.type == notification_type)
 
     total_result = await db.execute(select(func.count()).select_from(query.subquery()))
     total = total_result.scalar()
@@ -74,7 +74,7 @@ async def get_unread_count(
     result = await db.execute(
         select(func.count(Notification.id)).where(
             and_(
-                Notification.user_id == current_user.id,
+                Notification.recipient_id == current_user.id,
                 Notification.tenant_id == current_user.tenant_id,
                 Notification.is_read == False,  # noqa: E712
             )
@@ -94,7 +94,7 @@ async def mark_notification_read(
         select(Notification).where(
             and_(
                 Notification.id == notification_id,
-                Notification.user_id == current_user.id,
+                Notification.recipient_id == current_user.id,
                 Notification.tenant_id == current_user.tenant_id,
             )
         )
@@ -119,7 +119,7 @@ async def mark_all_notifications_read(
     result = await db.execute(
         select(Notification).where(
             and_(
-                Notification.user_id == current_user.id,
+                Notification.recipient_id == current_user.id,
                 Notification.tenant_id == current_user.tenant_id,
                 Notification.is_read == False,  # noqa: E712
             )
@@ -150,7 +150,7 @@ async def delete_notification(
         select(Notification).where(
             and_(
                 Notification.id == notification_id,
-                Notification.user_id == current_user.id,
+                Notification.recipient_id == current_user.id,
                 Notification.tenant_id == current_user.tenant_id,
             )
         )

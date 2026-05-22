@@ -68,26 +68,25 @@ def _workflow_to_dict(wf: Workflow) -> dict:
         "name": wf.name,
         "description": wf.description,
         "trigger_type": wf.trigger_type,
-        "resource_types": wf.resource_types or [],
+        "workflow_type": wf.workflow_type,
         "is_active": wf.is_active,
-        "is_default": wf.is_default,
+        "is_default": False,
+        "resource_types": [],
         "tenant_id": str(wf.tenant_id),
-        "created_at": wf.created_at.isoformat(),
+        "version": wf.version,
+        "created_at": wf.created_at.isoformat() if wf.created_at else None,
         "updated_at": wf.updated_at.isoformat() if wf.updated_at else None,
     }
 
 def _instance_to_dict(inst: WorkflowInstance) -> dict:
     return {
         "id": str(inst.id),
-        "workflow_id": str(inst.workflow_id),
+        "workflow_id": str(inst.definition_id) if inst.definition_id else None,
         "status": inst.status,
-        "trigger_type": inst.trigger_type,
-        "resource_id": str(inst.resource_id) if inst.resource_id else None,
-        "initiated_by": str(inst.initiated_by) if inst.initiated_by else None,
         "current_step": inst.current_step,
         "started_at": inst.started_at.isoformat() if inst.started_at else None,
         "completed_at": inst.completed_at.isoformat() if inst.completed_at else None,
-        "created_at": inst.created_at.isoformat(),
+        "created_at": inst.created_at.isoformat() if inst.created_at else None,
     }
 
 # ---------------------------------------------------------------------------

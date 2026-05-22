@@ -58,6 +58,9 @@ class User(Base):
     phone = Column(String(30), nullable=True)
     timezone = Column(String(64), nullable=True, default="UTC")
     locale = Column(String(10), nullable=True, default="en")
+    created_at = Column(DateTime(timezone=True), nullable=True)
+    updated_at = Column(DateTime(timezone=True), nullable=True)
+    deleted_at = Column(DateTime(timezone=True), nullable=True)
 
 
     # Relationships

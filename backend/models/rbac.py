@@ -19,85 +19,26 @@ from sqlalchemy.orm import relationship
 from backend.database import Base
 
 
-class Department(Base):
-    __tablename__ = "department"
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-
-    tenant_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("tenants.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
-    name = Column(String(255), nullable=False)
-    code = Column(String(100), nullable=True)
-    parent_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("departments.id", ondelete="SET NULL"),
-        nullable=True,
-        index=True,
-    )
-    manager_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="SET NULL"),
-        nullable=True,
-    )
-    description = Column(Text, nullable=True)
-    created_by = Column(UUID(as_uuid=True), nullable=True)
-    updated_by = Column(UUID(as_uuid=True), nullable=True)
-
-    # Relationships
-    parent = relationship("Department", primaryjoin="Department.parent_id==Department.id", back_populates="children", foreign_keys="[Department.parent_id]", remote_side="Department.id")
-    children = relationship("Department", primaryjoin="Department.id==Department.parent_id", back_populates="parent", foreign_keys="[Department.parent_id]")
-
-    __table_args__ = (
-        Index("ix_department_tenant_code", "tenant_id", "code"),
-        Index("ix_department_tenant_name", "tenant_id", "name"),
-    )
-
-    def __repr__(self) -> str:
-        return f"<Department id={self.id} name={self.name!r}>"
-
 
 class Role(Base):
     __tablename__ = "roles"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-
-    tenant_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("tenants.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
     name = Column(String(255), nullable=False)
+    slug = Column(String(100), nullable=True)
     description = Column(Text, nullable=True)
-    role_type = Column(
-        SAEnum("business", "technical", "dynamic", name="role_type_enum"),
-        nullable=False,
-        default="business",
-        index=True,
-    )
-    parent_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("roles.id", ondelete="SET NULL"),
-        nullable=True,
-        index=True,
-    )
-    is_privileged = Column(Boolean, nullable=False, default=False)
-    risk_level = Column(
-        SAEnum("low", "medium", "high", "critical", name="role_risk_level_enum"),
-        nullable=False,
-        default="low",
-        index=True,
-    )
-    created_by = Column(UUID(as_uuid=True), nullable=True)
-    updated_by = Column(UUID(as_uuid=True), nullable=True)
+    type = Column(String(50), nullable=True, index=True)
+    is_active = Column(Boolean, nullable=False, default=True, index=True)
+    is_requestable = Column(Boolean, nullable=False, default=False)
+    owner_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    parent_role_id = Column(UUID(as_uuid=True), ForeignKey("roles.id", ondelete="SET NULL"), nullable=True, index=True)
+    risk_level = Column(String(50), nullable=True, default="low", index=True)
+    role_metadata = Column("metadata", JSONB, nullable=True, default=dict)
 
     # Relationships
-    parent = relationship("Role", primaryjoin="Role.parent_id==Role.id", back_populates="children", foreign_keys="[Role.parent_id]", remote_side="Role.id")
-    children = relationship("Role", primaryjoin="Role.id==Role.parent_id", back_populates="parent", foreign_keys="[Role.parent_id]")
+    parent = relationship("Role", primaryjoin="Role.parent_role_id==Role.id", back_populates="children", foreign_keys="[Role.parent_role_id]", remote_side="Role.id")
+    children = relationship("Role", primaryjoin="Role.id==Role.parent_role_id", back_populates="parent", foreign_keys="[Role.parent_role_id]")
     permissions = relationship(
         "RolePermission", back_populates="role", lazy="select"
     )
@@ -107,11 +48,10 @@ class Role(Base):
 
     __table_args__ = (
         Index("ix_roles_tenant_name", "tenant_id", "name"),
-        Index("ix_roles_tenant_type", "tenant_id", "role_type"),
-    )
+            )
 
     def __repr__(self) -> str:
-        return f"<Role id={self.id} name={self.name!r} type={self.role_type}>"
+        return f"<Role id={self.id} name={self.name!r} type={self.type}>"
 
 
 class Permission(Base):

@@ -130,7 +130,7 @@ async def get_sod_policy(
         raise HTTPException(status_code=404, detail="Policy not found")
     rules_result = await db.execute(
         select(SODRule).where(
-            and_(SODRule.policy_id == policy_id, SODRule.deleted_at.is_(None))
+            and_(SODRule.tenant_id == policy_id, SODRule.deleted_at.is_(None))
         )
     )
     rules = rules_result.scalars().all()
@@ -174,7 +174,7 @@ async def list_sod_rules(
         and_(SODRule.tenant_id == current_user.tenant_id, SODRule.deleted_at.is_(None))
     )
     if policy_id:
-        query = query.where(SODRule.policy_id == policy_id)
+        query = query.where(SODRule.tenant_id == policy_id)
     total_result = await db.execute(select(func.count()).select_from(query.subquery()))
     total = total_result.scalar()
     query = query.offset((page - 1) * per_page).limit(per_page)
@@ -245,7 +245,7 @@ async def list_sod_violations(
         query = query.where(SODViolation.status == violation_status)
     total_result = await db.execute(select(func.count()).select_from(query.subquery()))
     total = total_result.scalar()
-    query = query.order_by(desc(SODViolation.detection_date)).offset((page - 1) * per_page).limit(per_page)
+    query = query.order_by(desc(SODViolation.detected_at)).offset((page - 1) * per_page).limit(per_page)
     result = await db.execute(query)
     return {
         "items": [v.to_dict() for v in result.scalars().all()],

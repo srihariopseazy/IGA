@@ -20,7 +20,6 @@ from backend.models.connector import (  # noqa: F401
 
 # ── RBAC (Role/Dept referenced by User) ──────────────────────────────────────
 from backend.models.rbac import (  # noqa: F401
-    Department,
     Role,
     Permission,
     RolePermission,
@@ -146,7 +145,6 @@ __all__ = [
     "Connector",
     "ConnectorConfig",
     # RBAC
-    "Department",
     "Role",
     "Permission",
     "RolePermission",

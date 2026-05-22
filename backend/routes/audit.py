@@ -34,7 +34,7 @@ async def get_current_user(request: Request, db: AsyncSession = Depends(get_db))
 
 def _build_log_query(
     tenant_id,
-    user_id: Optional[str],
+    actor_id: Optional[str],
     action: Optional[str],
     resource_type: Optional[str],
     ip_address: Optional[str],
@@ -44,8 +44,8 @@ def _build_log_query(
     risk_level: Optional[str],
 ):
     query = select(AuditLog).where(AuditLog.tenant_id == tenant_id)
-    if user_id:
-        query = query.where(AuditLog.user_id == user_id)
+    if actor_id:
+        query = query.where(AuditLog.actor_id == user_id)
     if action:
         query = query.where(AuditLog.action.ilike(f"%{action}%"))
     if resource_type:
@@ -57,15 +57,15 @@ def _build_log_query(
     if end_time:
         query = query.where(AuditLog.created_at <= end_time)
     if result:
-        query = query.where(AuditLog.result == result)
+        query = query.where(AuditLog.outcome == result)
     if risk_level:
-        query = query.where(AuditLog.risk_level == risk_level)
+        query = query.where(AuditLog.outcome == risk_level)
     return query
 
 
 @router.get("/logs")
 async def list_audit_logs(
-    user_id: Optional[str] = Query(None),
+    actor_id: Optional[str] = Query(None),
     action: Optional[str] = Query(None),
     resource_type: Optional[str] = Query(None),
     ip_address: Optional[str] = Query(None),
@@ -80,7 +80,7 @@ async def list_audit_logs(
 ):
     query = _build_log_query(
         current_user.tenant_id,
-        user_id,
+        actor_id,
         action,
         resource_type,
         ip_address,
@@ -104,7 +104,7 @@ async def list_audit_logs(
 
 @router.get("/logs/export")
 async def export_audit_logs(
-    user_id: Optional[str] = Query(None),
+    actor_id: Optional[str] = Query(None),
     action: Optional[str] = Query(None),
     resource_type: Optional[str] = Query(None),
     ip_address: Optional[str] = Query(None),
@@ -118,7 +118,7 @@ async def export_audit_logs(
 ):
     query = _build_log_query(
         current_user.tenant_id,
-        user_id,
+        actor_id,
         action,
         resource_type,
         ip_address,
@@ -144,7 +144,7 @@ async def export_audit_logs(
     fieldnames = [
         "id",
         "tenant_id",
-        "user_id",
+        "actor_id",
         "action",
         "resource_type",
         "resource_id",
@@ -199,7 +199,7 @@ async def get_security_events(
             and_(
                 AuditLog.tenant_id == current_user.tenant_id,
                 AuditLog.created_at >= since,
-                AuditLog.risk_level.in_(["high", "critical"]),
+                AuditLog.outcome.in_(["high", "critical"]),
             )
         )
         .order_by(desc(AuditLog.created_at))
@@ -229,17 +229,17 @@ async def get_audit_stats(
 
     # Counts by result
     by_result_rows = await db.execute(
-        select(AuditLog.result, func.count(AuditLog.id))
+        select(AuditLog.outcome, func.count(AuditLog.id))
         .where(AuditLog.tenant_id == tenant_id)
-        .group_by(AuditLog.result)
+        .group_by(AuditLog.outcome)
     )
     by_result = {row[0]: row[1] for row in by_result_rows.all()}
 
     # Counts by risk_level
     by_risk_rows = await db.execute(
-        select(AuditLog.risk_level, func.count(AuditLog.id))
+        select(AuditLog.outcome, func.count(AuditLog.id))
         .where(AuditLog.tenant_id == tenant_id)
-        .group_by(AuditLog.risk_level)
+        .group_by(AuditLog.outcome)
     )
     by_risk = {row[0]: row[1] for row in by_risk_rows.all()}
 
@@ -268,4 +268,57 @@ async def get_audit_stats(
         "by_result": by_result,
         "by_risk_level": by_risk,
         "top_actions": top_actions,
+    }
+
+
+@router.get("/analytics")
+async def get_audit_analytics(
+    current_user = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Return analytics summary for the Analytics page."""
+    from sqlalchemy import func, and_, select
+    from backend.models.audit import AuditLog
+    from datetime import timedelta
+
+    tenant_id = current_user.tenant_id
+    now = datetime.now(timezone.utc)
+    month_ago = now - timedelta(days=30)
+
+    # Total actions this month
+    total_result = await db.execute(
+        select(func.count(AuditLog.id)).where(
+            and_(AuditLog.tenant_id == tenant_id, AuditLog.created_at >= month_ago)
+        )
+    )
+    total_actions = total_result.scalar() or 0
+
+    # Failed actions
+    failed_result = await db.execute(
+        select(func.count(AuditLog.id)).where(
+            and_(
+                AuditLog.tenant_id == tenant_id,
+                AuditLog.created_at >= month_ago,
+                AuditLog.outcome == "failure",
+            )
+        )
+    )
+    failed_actions = failed_result.scalar() or 0
+
+    # Top actions
+    top_actions_result = await db.execute(
+        select(AuditLog.action, func.count(AuditLog.id).label("count"))
+        .where(and_(AuditLog.tenant_id == tenant_id, AuditLog.created_at >= month_ago))
+        .group_by(AuditLog.action)
+        .order_by(func.count(AuditLog.id).desc())
+        .limit(5)
+    )
+    top_actions = [{"action": r[0], "count": r[1]} for r in top_actions_result.all()]
+
+    return {
+        "total_actions": total_actions,
+        "failed_actions": failed_actions,
+        "success_rate": round((total_actions - failed_actions) / total_actions * 100, 1) if total_actions else 100,
+        "top_actions": top_actions,
+        "period": "last_30_days",
     }

@@ -50,15 +50,15 @@ async def list_risk_scores(
 ):
     query = select(RiskScore).where(RiskScore.tenant_id == current_user.tenant_id)
     if risk_level:
-        query = query.where(RiskScore.risk_level == risk_level)
+        query = query.where(RiskScore.level == risk_level)
     if min_score is not None:
-        query = query.where(RiskScore.overall_score >= min_score)
+        query = query.where(RiskScore.score >= min_score)
     if max_score is not None:
-        query = query.where(RiskScore.overall_score <= max_score)
+        query = query.where(RiskScore.score <= max_score)
 
     total_result = await db.execute(select(func.count()).select_from(query.subquery()))
     total = total_result.scalar()
-    query = query.order_by(desc(RiskScore.overall_score)).offset((page - 1) * per_page).limit(per_page)
+    query = query.order_by(desc(RiskScore.score)).offset((page - 1) * per_page).limit(per_page)
     rows = await db.execute(query)
     scores = rows.scalars().all()
 
@@ -156,11 +156,11 @@ async def get_risk_heatmap(
     rows = await db.execute(
         select(
             UserModel.department_id,
-            func.avg(RiskScore.overall_score).label("avg_score"),
-            func.max(RiskScore.overall_score).label("max_score"),
+            func.avg(RiskScore.score).label("avg_score"),
+            func.max(RiskScore.score).label("max_score"),
             func.count(RiskScore.id).label("user_count"),
             func.sum(
-                func.cast(RiskScore.risk_level == "critical", func.Integer if hasattr(func, "Integer") else func.count)
+                func.cast(RiskScore.level == "critical", func.Integer if hasattr(func, "Integer") else func.count)
             ).label("critical_count"),
         )
         .join(RiskScore, RiskScore.user_id == UserModel.id)
@@ -168,7 +168,7 @@ async def get_risk_heatmap(
             and_(
                 RiskScore.tenant_id == current_user.tenant_id,
                 UserModel.tenant_id == current_user.tenant_id,
-                UserModel.deleted_at.is_(None),
+                UserModel.updated_at.isnot(None),
             )
         )
         .group_by(UserModel.department_id)
@@ -336,7 +336,7 @@ async def recalculate_user_risk(
             and_(
                 User.id == user_id,
                 User.tenant_id == current_user.tenant_id,
-                User.deleted_at.is_(None),
+                User.updated_at.isnot(None),
             )
         )
     )
@@ -358,7 +358,7 @@ async def recalculate_user_risk(
                 "success": True,
                 "user_id": str(user_id),
                 "message": "Risk score recalculated synchronously",
-                "new_score": updated.overall_score if updated else None,
+                "new_score": updated.score if updated else None,
             }
         except Exception as e:
             return {"success": False, "user_id": str(user_id), "message": str(e)}

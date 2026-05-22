@@ -244,6 +244,38 @@ async def create_user(
     return _user_to_dict(new_user)
 
 
+
+
+@router.get("/me")
+async def get_current_user_profile(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Get current user profile - alias for frontend compatibility."""
+    from sqlalchemy import select
+    result = await db.execute(select(User).where(User.id == current_user.id))
+    user = result.scalar_one_or_none()
+    if not user:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="User not found")
+    return {
+        "id": str(user.id),
+        "email": user.email,
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "display_name": user.display_name,
+        "avatar_url": user.avatar_url,
+        "tenant_id": str(user.tenant_id),
+        "is_active": user.is_active,
+        "mfa_enabled": user.mfa_enabled,
+        "email_verified": user.email_verified,
+        "department": user.department,
+        "job_title": None,
+        "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None,
+        "created_at": user.created_at.isoformat() if user.created_at else None,
+    }
+
+
 @router.get("/{user_id}")
 async def get_user(
     user_id: str,

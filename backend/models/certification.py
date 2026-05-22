@@ -24,53 +24,30 @@ class CertificationCampaign(Base):
     __tablename__ = "certification_campaigns"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-
-    tenant_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("tenants.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
     name = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
-    campaign_type = Column(
-        SAEnum(
-            "manager", "app_owner", "role_owner", "entitlement",
-            name="campaign_type_enum",
-        ),
-        nullable=False,
-        index=True,
-    )
-    status = Column(
-        SAEnum(
-            "draft", "active", "paused", "completed", "cancelled",
-            name="campaign_status_enum",
-        ),
-        nullable=False,
-        default="draft",
-        index=True,
-    )
-    scope_definition = Column(JSONB, nullable=True, default=dict)
+    type = Column(String(50), nullable=True, index=True)
+    status = Column(String(50), nullable=False, default="draft", index=True)
+    owner_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    scope = Column(JSONB, nullable=True, default=dict)
     start_date = Column(DateTime(timezone=True), nullable=True)
     end_date = Column(DateTime(timezone=True), nullable=True)
-    deadline = Column(DateTime(timezone=True), nullable=True)
-    auto_revoke_on_expire = Column(Boolean, nullable=False, default=False)
-    created_by = Column(UUID(as_uuid=True), nullable=True)
-    updated_by = Column(UUID(as_uuid=True), nullable=True)
+    reminder_date = Column(DateTime(timezone=True), nullable=True)
+    auto_revoke_on_expiry = Column(Boolean, nullable=False, default=False)
+    total_items = Column(Integer, nullable=False, default=0)
+    certified_items = Column(Integer, nullable=False, default=0)
+    revoked_items = Column(Integer, nullable=False, default=0)
+    cert_metadata = Column("metadata", JSONB, nullable=True, default=dict)
 
-    # Relationships
     items = relationship("CertificationItem", back_populates="campaign", lazy="select")
     reviewers = relationship("CertificationReviewer", back_populates="campaign", lazy="select")
 
     __table_args__ = (
         Index("ix_certification_campaigns_tenant_status", "tenant_id", "status"),
-        Index("ix_certification_campaigns_tenant_type", "tenant_id", "campaign_type"),
+        {"extend_existing": True},
     )
 
-    def __repr__(self) -> str:
-        return (
-            f"<CertificationCampaign id={self.id} name={self.name!r} status={self.status}>"
-        )
 
 
 class CertificationItem(Base):

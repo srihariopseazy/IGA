@@ -67,7 +67,7 @@ def _campaign_to_dict(c: CertificationCampaign) -> dict:
         "id": str(c.id),
         "name": c.name,
         "description": c.description,
-        "campaign_type": c.campaign_type,
+        "type": c.type,
         "status": c.status,
         "reviewer_type": c.reviewer_type,
         "due_date": c.due_date.isoformat() if c.due_date else None,
@@ -114,8 +114,8 @@ async def list_campaigns(
         query = query.where(CertificationCampaign.status == status_filter)
         count_q = count_q.where(CertificationCampaign.status == status_filter)
     if campaign_type:
-        query = query.where(CertificationCampaign.campaign_type == campaign_type)
-        count_q = count_q.where(CertificationCampaign.campaign_type == campaign_type)
+        query = query.where(CertificationCampaign.type == campaign_type)
+        count_q = count_q.where(CertificationCampaign.type == campaign_type)
 
     total = (await db.execute(count_q)).scalar()
     result = await db.execute(
@@ -144,7 +144,7 @@ async def create_campaign(
     campaign = CertificationCampaign(
         name=body.name,
         description=body.description,
-        campaign_type=body.campaign_type,
+        campaign_type=body.type,
         scope_filter=body.scope_filter,
         reviewer_type=body.reviewer_type,
         reviewer_ids=body.reviewer_ids,
@@ -693,3 +693,37 @@ async def export_campaign(
         media_type="text/csv",
         headers={"Content-Disposition": f"attachment; filename=campaign_{campaign_id}.csv"},
     )
+
+
+@router.get("")
+async def list_certifications_root(
+    page: int = Query(1, ge=1),
+    page_size: int = Query(25, ge=1, le=100),
+    current_user = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Root certifications endpoint - returns campaigns."""
+    from sqlalchemy import select, func, and_
+    from backend.models.certification import CertificationCampaign
+    tenant_id = current_user.tenant_id
+    count_q = select(func.count(CertificationCampaign.id)).where(
+        and_(CertificationCampaign.tenant_id == tenant_id,
+             CertificationCampaign.deleted_at.is_(None))
+    )
+    total = (await db.execute(count_q)).scalar() or 0
+    q = select(CertificationCampaign).where(
+        and_(CertificationCampaign.tenant_id == tenant_id,
+             CertificationCampaign.deleted_at.is_(None))
+    ).order_by(CertificationCampaign.created_at.desc()).offset((page-1)*page_size).limit(page_size)
+    result = await db.execute(q)
+    items = result.scalars().all()
+    return {
+        "items": [{"id": str(i.id), "name": i.name, "status": i.status,
+                   "type": i.type, "total_items": i.total_items,
+                   "certified_items": i.certified_items,
+                   "start_date": i.start_date.isoformat() if i.start_date else None,
+                   "end_date": i.end_date.isoformat() if i.end_date else None,
+                   "created_at": i.created_at.isoformat() if i.created_at else None}
+                  for i in items],
+        "total": total, "page": page, "page_size": page_size,
+    }

@@ -68,10 +68,10 @@ def _app_to_dict(app: Application) -> dict:
         "type": app.type,
         "category": app.category,
         "owner_id": str(app.owner_id) if app.owner_id else None,
-        "connector_id": str(app.connector_id) if app.connector_id else None,
+        "connector_id": str(app.id) if app.id else None,
         "logo_url": app.logo_url,
         "auth_type": app.auth_type,
-        "risk_level": app.risk_level,
+        "type": app.type,
         "is_active": app.is_active,
         "tenant_id": str(app.tenant_id),
         "created_at": app.created_at.isoformat(),
@@ -85,7 +85,7 @@ def _ent_to_dict(ent: Entitlement) -> dict:
         "description": ent.description,
         "entitlement_type": ent.entitlement_type,
         "external_id": ent.external_id,
-        "risk_level": ent.risk_level,
+        "type": ent.type,
         "is_requestable": ent.is_requestable,
         "requires_approval": ent.requires_approval,
         "application_id": str(ent.application_id),
@@ -157,10 +157,10 @@ async def create_application(
         type=body.type,
         category=body.category,
         owner_id=body.owner_id,
-        connector_id=body.connector_id,
+        connector_id=body.id,
         logo_url=body.logo_url,
         auth_type=body.auth_type,
-        risk_level=body.risk_level,
+        risk_level=body.type,
         is_active=body.is_active,
         app_metadata=body.metadata,
         tenant_id=current_user.tenant_id,
@@ -354,7 +354,7 @@ async def create_entitlement(
         description=body.description,
         entitlement_type=body.entitlement_type,
         external_id=body.external_id,
-        risk_level=body.risk_level,
+        risk_level=body.type,
         is_requestable=body.is_requestable,
         requires_approval=body.requires_approval,
         application_id=app_id,
@@ -459,7 +459,7 @@ async def get_app_health(
     if not app:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Application not found")
 
-    if not app.connector_id:
+    if not app.id:
         return {
             "app_id": app_id,
             "connector_id": None,
@@ -468,13 +468,13 @@ async def get_app_health(
         }
 
     connector_result = await db.execute(
-        select(Connector).where(Connector.id == app.connector_id)
+        select(Connector).where(Connector.id == app.id)
     )
     connector = connector_result.scalar_one_or_none()
     if not connector:
         return {
             "app_id": app_id,
-            "connector_id": str(app.connector_id),
+            "connector_id": str(app.id),
             "status": "connector_not_found",
             "message": "Connector not found",
         }

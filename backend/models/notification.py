@@ -1,90 +1,52 @@
 from __future__ import annotations
-
 import uuid
-from typing import Optional
-
-from sqlalchemy import (
-    Column,
-    String,
-    Boolean,
-    DateTime,
-    Text,
-    ForeignKey,
-    Index,
-)
+from sqlalchemy import Column, String, Boolean, DateTime, Text, ForeignKey, Index
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
-
 from backend.database import Base
 
 
 class Notification(Base):
     __tablename__ = "notifications"
+    updated_at = None
+    deleted_at = None
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-
-    tenant_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("tenants.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
-    user_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
-    )
-    notification_type = Column(String(100), nullable=False, index=True)
-    title = Column(String(500), nullable=False)
-    message = Column(Text, nullable=False)
-    reference_type = Column(String(100), nullable=True, index=True)
-    reference_id = Column(UUID(as_uuid=True), nullable=True, index=True)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    recipient_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    type = Column(String(100), nullable=False, index=True)
+    title = Column(String(255), nullable=False)
+    body = Column(Text, nullable=True)
+    channel = Column(String(50), nullable=True, default="in_app")
     is_read = Column(Boolean, nullable=False, default=False, index=True)
     read_at = Column(DateTime(timezone=True), nullable=True)
+    sent_at = Column(DateTime(timezone=True), nullable=True)
+    failed_at = Column(DateTime(timezone=True), nullable=True)
+    error_message = Column(Text, nullable=True)
+    resource_type = Column(String(100), nullable=True)
+    resource_id = Column(UUID(as_uuid=True), nullable=True)
+    data = Column(JSONB, nullable=True, default=dict)
+    created_at = Column(DateTime(timezone=True), nullable=True)
 
-    # Relationships
-    user = relationship("User", foreign_keys=[user_id])
+    recipient = relationship("User", foreign_keys=[recipient_id])
 
     __table_args__ = (
-        Index("ix_notifications_user_read", "user_id", "is_read"),
-        Index("ix_notifications_tenant_user", "tenant_id", "user_id"),
-        Index("ix_notifications_reference", "reference_type", "reference_id"),
+        Index("ix_notifications_recipient_read", "recipient_id", "is_read"),
+        Index("ix_notifications_tenant_recipient", "tenant_id", "recipient_id"),
     )
-
-    def __repr__(self) -> str:
-        return (
-            f"<Notification id={self.id} user_id={self.user_id} "
-            f"notification_type={self.notification_type!r} is_read={self.is_read}>"
-        )
 
 
 class NotificationTemplate(Base):
     __tablename__ = "notification_template"
+    updated_at = None
+    deleted_at = None
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
-
-    tenant_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("tenants.id", ondelete="CASCADE"),
-        nullable=True,
-        index=True,
-    )
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
     template_type = Column(String(100), nullable=False, index=True)
-    subject = Column(String(500), nullable=False)
-    body_html = Column(Text, nullable=False)
+    subject = Column(String(255), nullable=True)
+    body_html = Column(Text, nullable=True)
     body_text = Column(Text, nullable=True)
     variables = Column(JSONB, nullable=True, default=list)
-    is_active = Column(Boolean, nullable=False, default=True, index=True)
-
-    __table_args__ = (
-        Index("ix_notification_template_type", "template_type"),
-        Index("ix_notification_template_tenant_type", "tenant_id", "template_type"),
-        {"extend_existing": True},
-    )
-
-    def __repr__(self) -> str:
-        return (
-            f"<NotificationTemplate id={self.id} "
-            f"template_type={self.template_type!r}>"
-        )
+    is_active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime(timezone=True), nullable=True)

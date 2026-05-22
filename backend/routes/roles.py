@@ -21,7 +21,7 @@ from backend.models.sod import SODPolicy, SODViolation as SODViolation
 SoDPolicy = SODPolicy
 SoDConflict = SODViolation
 
-router = APIRouter(tags=["Roles & Permissions"])
+router = APIRouter(prefix="/roles", tags=["Roles & Permissions"])
 
 # ---------------------------------------------------------------------------
 # Pydantic schemas
@@ -103,7 +103,7 @@ def _permission_to_dict(p: Permission) -> dict:
 # Role Endpoints
 # ---------------------------------------------------------------------------
 
-@router.get("/roles")
+@router.get("")
 async def list_roles(
     page: int = Query(1, ge=1),
     page_size: int = Query(25, ge=1, le=200),
@@ -159,7 +159,7 @@ async def list_roles(
     }
 
 
-@router.post("/roles", status_code=status.HTTP_201_CREATED)
+@router.post("", status_code=status.HTTP_201_CREATED)
 async def create_role(
     body: RoleCreateRequest,
     background_tasks: BackgroundTasks,
@@ -200,7 +200,7 @@ async def create_role(
     return _role_to_dict(role)
 
 
-@router.get("/roles/{role_id}")
+@router.get("/{role_id}")
 async def get_role(
     role_id: str,
     current_user: User = Depends(require_permission("roles:read")),
@@ -227,7 +227,7 @@ async def get_role(
     return data
 
 
-@router.put("/roles/{role_id}")
+@router.put("/{role_id}")
 async def update_role(
     role_id: str,
     body: RoleUpdateRequest,
@@ -259,7 +259,7 @@ async def update_role(
     return _role_to_dict(role)
 
 
-@router.delete("/roles/{role_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{role_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_role(
     role_id: str,
     background_tasks: BackgroundTasks,
@@ -295,7 +295,7 @@ async def delete_role(
     )
 
 
-@router.get("/roles/{role_id}/permissions")
+@router.get("/{role_id}/permissions")
 async def list_role_permissions(
     role_id: str,
     current_user: User = Depends(require_permission("roles:read")),
@@ -318,7 +318,7 @@ async def list_role_permissions(
     return {"permissions": [_permission_to_dict(p) for p in permissions]}
 
 
-@router.post("/roles/{role_id}/permissions")
+@router.post("/{role_id}/permissions")
 async def add_role_permissions(
     role_id: str,
     body: AddPermissionsRequest,
@@ -353,7 +353,7 @@ async def add_role_permissions(
     return {"message": f"{len(added)} permissions added"}
 
 
-@router.delete("/roles/{role_id}/permissions/{permission_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{role_id}/permissions/{permission_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def remove_role_permission(
     role_id: str,
     permission_id: str,
@@ -380,7 +380,7 @@ async def remove_role_permission(
     )
 
 
-@router.get("/roles/{role_id}/members")
+@router.get("/{role_id}/members")
 async def list_role_members(
     role_id: str,
     page: int = Query(1, ge=1),
@@ -431,7 +431,7 @@ async def list_role_members(
     }
 
 
-@router.post("/roles/{role_id}/members")
+@router.post("/{role_id}/members")
 async def assign_role_to_users(
     role_id: str,
     body: AssignRoleRequest,
@@ -475,7 +475,7 @@ async def assign_role_to_users(
     return {"assigned": len(assigned), "skipped": len(skipped), "user_ids": assigned}
 
 
-@router.delete("/roles/{role_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{role_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def remove_role_from_user(
     role_id: str,
     user_id: str,
@@ -500,7 +500,7 @@ async def remove_role_from_user(
     )
 
 
-@router.get("/roles/{role_id}/sod-conflicts")
+@router.get("/{role_id}/sod-conflicts")
 async def get_role_sod_conflicts(
     role_id: str,
     current_user: User = Depends(require_permission("sod:read")),
@@ -535,7 +535,7 @@ async def get_role_sod_conflicts(
     }
 
 
-@router.post("/roles/mining")
+@router.post("/mining")
 async def trigger_role_mining(
     body: RoleMiningRequest,
     background_tasks: BackgroundTasks,
@@ -557,7 +557,7 @@ async def trigger_role_mining(
     }
 
 
-@router.get("/roles/recommendations/{user_id}")
+@router.get("/recommendations/{user_id}")
 async def get_role_recommendations(
     user_id: str,
     current_user: User = Depends(require_permission("roles:read")),

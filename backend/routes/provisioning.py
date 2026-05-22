@@ -48,9 +48,9 @@ async def list_provisioning_tasks(
     if task_type:
         query = query.where(ProvisioningTask.task_type == task_type)
     if target_application_id:
-        query = query.where(ProvisioningTask.target_application_id == target_application_id)
+        query = query.where(ProvisioningTask.application_id == target_application_id)
     if target_user_id:
-        query = query.where(ProvisioningTask.target_user_id == target_user_id)
+        query = query.where(ProvisioningTask.user_id == target_user_id)
     if connector_id:
         query = query.where(ProvisioningTask.connector_id == connector_id)
 

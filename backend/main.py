@@ -339,7 +339,7 @@ def _register_routers(app: FastAPI) -> None:
     router_configs = [
         # Routes WITHOUT their own prefix — main.py provides the path suffix
         ("backend.routes.auth", "/auth", ["auth"]),
-        ("backend.routes.roles", "/roles", ["roles"]),
+        ("backend.routes.roles", "", ["roles"]),
         ("backend.routes.health", "/health", ["health"]),
         ("backend.routes.dashboard", "/dashboard", ["dashboard"]),
         # Routes WITH their own prefix — use "" so the router's own prefix is used
@@ -350,6 +350,8 @@ def _register_routers(app: FastAPI) -> None:
         ("backend.routes.entitlements", "", ["entitlements"]),
         ("backend.routes.access_requests", "", ["access-requests"]),
         ("backend.routes.approvals", "", ["approvals"]),
+        ("backend.routes.sync_jobs", "", ["sync-jobs"]),
+        ("backend.routes.config", "", ["config"]),
         ("backend.routes.workflows", "", ["workflows"]),
         ("backend.routes.certifications", "", ["certifications"]),
         ("backend.routes.sod", "", ["sod"]),

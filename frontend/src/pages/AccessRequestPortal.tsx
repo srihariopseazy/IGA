@@ -92,9 +92,9 @@ const AccessRequestPortal: React.FC = () => {
       />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <StatsCard label="Pending" value={requests?.data.filter((r) => r.status === "pending").length ?? 0} />
-        <StatsCard label="Approved" value={requests?.data.filter((r) => r.status === "approved").length ?? 0} />
-        <StatsCard label="Rejected" value={requests?.data.filter((r) => r.status === "rejected").length ?? 0} />
+        <StatsCard title="Pending" value={(requests?.data ?? requests?.items ?? []).filter((r: any) => r.status === "pending").length ?? 0} />
+        <StatsCard title="Approved" value={(requests?.data ?? requests?.items ?? []).filter((r: any) => r.status === "approved").length ?? 0} />
+        <StatsCard title="Rejected" value={(requests?.data ?? requests?.items ?? []).filter((r: any) => r.status === "rejected").length ?? 0} />
       </div>
 
       {showForm && (
@@ -104,7 +104,7 @@ const AccessRequestPortal: React.FC = () => {
             <div>
               <label className="block text-sm font-medium mb-1">Select Entitlements</label>
               <div className="max-h-60 overflow-y-auto border rounded-lg divide-y dark:border-gray-600">
-                {entitlements?.data.map((e) => (
+                {(entitlements?.items ?? entitlements?.data ?? []).map((e) => (
                   <label key={e.id} className="flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
                     <input
                       type="checkbox"
@@ -154,7 +154,7 @@ const AccessRequestPortal: React.FC = () => {
         <div className="p-4 border-b dark:border-gray-700">
           <h2 className="font-semibold">My Requests</h2>
         </div>
-        <DataTable columns={columns} data={requests?.data ?? []} loading={isLoading} />
+        <DataTable columns={columns} data={(requests?.items ?? requests?.data ?? []) as any[]} loading={isLoading} />
       </div>
     </div>
   );

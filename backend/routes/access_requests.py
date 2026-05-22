@@ -355,7 +355,7 @@ async def get_access_request(
                 AccessRequest.tenant_id == current_user.tenant_id,
             )
         )
-        .options(selectinload(AccessRequest.approval_steps))
+        .options(selectinload(AccessRequest.approvals))
     )
     req = result.scalar_one_or_none()
     if not req:
@@ -365,7 +365,7 @@ async def get_access_request(
     if str(req.requester_id) != str(current_user.id):
         # Check if user is an approver
         is_approver = any(
-            str(step.approver_id) == str(current_user.id) for step in req.approval_steps
+            str(step.approver_id) == str(current_user.id) for step in req.approvals
         )
         if not is_approver:
             require_permission("access_requests:read")(current_user)
@@ -381,7 +381,7 @@ async def get_access_request(
             "comment": s.comment,
             "decided_at": s.decided_at.isoformat() if s.decided_at else None,
         }
-        for s in sorted(req.approval_steps, key=lambda x: x.step_order)
+        for s in sorted(req.approvals, key=lambda x: x.step_order)
     ]
     return data
 
@@ -440,7 +440,7 @@ async def approve_request(
                 AccessRequest.status == "pending",
             )
         )
-        .options(selectinload(AccessRequest.approval_steps))
+        .options(selectinload(AccessRequest.approvals))
     )
     req = result.scalar_one_or_none()
     if not req:
@@ -448,7 +448,7 @@ async def approve_request(
 
     # Find pending step for this approver
     pending_step = next(
-        (s for s in req.approval_steps
+        (s for s in req.approvals
          if str(s.approver_id) == str(current_user.id) and s.status == "pending"),
         None,
     )
@@ -461,7 +461,7 @@ async def approve_request(
 
     # Check if all steps approved
     all_approved = all(
-        s.status == "approved" for s in req.approval_steps
+        s.status == "approved" for s in req.approvals
     )
     if all_approved:
         req.status = "approved"
@@ -501,14 +501,14 @@ async def reject_request(
                 AccessRequest.status == "pending",
             )
         )
-        .options(selectinload(AccessRequest.approval_steps))
+        .options(selectinload(AccessRequest.approvals))
     )
     req = result.scalar_one_or_none()
     if not req:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Access request not found or not pending")
 
     pending_step = next(
-        (s for s in req.approval_steps
+        (s for s in req.approvals
          if str(s.approver_id) == str(current_user.id) and s.status == "pending"),
         None,
     )
@@ -554,14 +554,14 @@ async def delegate_approval(
                 AccessRequest.tenant_id == current_user.tenant_id,
             )
         )
-        .options(selectinload(AccessRequest.approval_steps))
+        .options(selectinload(AccessRequest.approvals))
     )
     req = result.scalar_one_or_none()
     if not req:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Access request not found")
 
     pending_step = next(
-        (s for s in req.approval_steps
+        (s for s in req.approvals
          if str(s.approver_id) == str(current_user.id) and s.status == "pending"),
         None,
     )
@@ -616,7 +616,7 @@ async def bulk_approve(
                     AccessRequest.status == "pending",
                 )
             )
-            .options(selectinload(AccessRequest.approval_steps))
+            .options(selectinload(AccessRequest.approvals))
         )
         req = result.scalar_one_or_none()
         if not req:
@@ -624,7 +624,7 @@ async def bulk_approve(
             continue
 
         step = next(
-            (s for s in req.approval_steps
+            (s for s in req.approvals
              if str(s.approver_id) == str(current_user.id) and s.status == "pending"),
             None,
         )
@@ -636,7 +636,7 @@ async def bulk_approve(
         step.comment = body.comment
         step.decided_at = datetime.now(timezone.utc)
 
-        all_approved = all(s.status == "approved" for s in req.approval_steps)
+        all_approved = all(s.status == "approved" for s in req.approvals)
         if all_approved:
             req.status = "approved"
             req.resolved_at = datetime.now(timezone.utc)
@@ -673,7 +673,7 @@ async def bulk_reject(
                     AccessRequest.status == "pending",
                 )
             )
-            .options(selectinload(AccessRequest.approval_steps))
+            .options(selectinload(AccessRequest.approvals))
         )
         req = result.scalar_one_or_none()
         if not req:
@@ -681,7 +681,7 @@ async def bulk_reject(
             continue
 
         step = next(
-            (s for s in req.approval_steps
+            (s for s in req.approvals
              if str(s.approver_id) == str(current_user.id) and s.status == "pending"),
             None,
         )
